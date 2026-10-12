@@ -7,7 +7,23 @@ import type {
   QuickPhraseUpdate
 } from "../src/shared/contracts";
 
+function initialSystemSettings(): GpasterBridge["initialSystemSettings"] {
+  try {
+    const argument = process.argv.find((value) => value.startsWith("--gpaster-system-settings="));
+    const settings = JSON.parse(decodeURIComponent(argument?.split("=").slice(1).join("=") ?? ""));
+    if ((settings.language === "en" || settings.language === "zh") && typeof settings.locale === "string") return settings;
+  } catch { /* Main supplies the initial system snapshot; fail safely if absent. */ }
+  return { language: "en", locale: "en-US" };
+}
+
 const bridge: GpasterBridge = {
+  initialSystemSettings: initialSystemSettings(),
+  getSystemSettings: async () => (await ipcRenderer.invoke("system:settings")) as GpasterBridge["initialSystemSettings"],
+  onSystemSettingsChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, settings: GpasterBridge["initialSystemSettings"]) => callback(settings);
+    ipcRenderer.on("system:settings-changed", listener);
+    return () => ipcRenderer.removeListener("system:settings-changed", listener);
+  },
   listCaptureIssues: async () => (await ipcRenderer.invoke("capture:issues")) as CaptureIssue[],
   onCaptureIssuesChanged: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, issues: CaptureIssue[]) => callback(issues);

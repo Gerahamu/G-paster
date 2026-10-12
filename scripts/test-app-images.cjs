@@ -47,6 +47,7 @@ app.whenReady().then(async () => {
     return window && !window.webContents.isLoading() && await window.webContents.executeJavaScript('Boolean(window.gpaster && document.querySelector(".module-tabs"))');
   }, 'actual renderer and preload');
   const evaluate = (code) => window.webContents.executeJavaScript(code);
+  const { translate } = require(join(root, 'dist-electron/src/shared/i18n.js'));
   const list = () => evaluate('window.gpaster.listHistory()');
   const pixels = Buffer.alloc(20 * 12 * 4, 120);
   for (let i = 3; i < pixels.length; i += 4) pixels[i] = 255;
@@ -82,7 +83,10 @@ app.whenReady().then(async () => {
   text = 'text still captured while an image fails';
   await waitFor(async () => (await list()).some(e => e.content === text), 'independent text capture');
   await waitFor(async () => (await evaluate('window.gpaster.listCaptureIssues()')).some(i => i.source === 'clipboard-image'), 'capture issue IPC');
-  await waitFor(() => evaluate('Array.from(document.querySelectorAll("[role=status]")).some(e => e.textContent.includes("无法读取剪贴板图片"))'), 'capture issue UI');
+  const issue = (await evaluate('window.gpaster.listCaptureIssues()')).find(i => i.source === 'clipboard-image');
+  const settings = await evaluate('window.gpaster.getSystemSettings()');
+  const issueText = translate(settings.language, issue.message);
+  await waitFor(() => evaluate(`Array.from(document.querySelectorAll("[role=status]")).some(e => e.textContent.includes(${JSON.stringify(issueText)}))`), 'localized capture issue UI');
   items = [new ClipboardItem({ 'image/png': new Blob([new Uint8Array(png)]) })]; text = '';
   await waitFor(async () => (await evaluate('window.gpaster.listCaptureIssues()')).length === 0, 'capture issue recovery');
   console.log('PASS failure visible in renderer, text unaffected, recovery clears status');

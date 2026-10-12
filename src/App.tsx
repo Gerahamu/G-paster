@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type FormEvent } from "react";
 import type { CaptureIssue, ClipboardEntry, ClipboardHistoryItem, ClipboardImageEntry, QuickPhrase } from "./shared/contracts";
+import { errorKey, translate, translateMessage, type TranslationKey, type TranslationValues } from "./shared/i18n";
 import gpasterIcon from "../assets/G-paster-brand.png";
 
 type ModuleName = "history" | "phrases" | "screenshots";
 type IconName = "history" | "phrase" | "image" | "search" | "link" | "text" | "copy" | "trash" | "close" | "plus" | "edit" | "star" | "save" | "bookmark";
 type PhraseEditorState = { id?: string; sourceHistoryId?: string; originalText?: string; text: string; category: string };
 
-const moduleNames: Record<ModuleName, string> = { history: "剪贴板", phrases: "常用语", screenshots: "截图" };
+const moduleNames: Record<ModuleName, TranslationKey> = { history: "剪贴板", phrases: "常用语", screenshots: "截图" };
 
 function Icon({ name, size = 17 }: { name: IconName; size?: number }) {
   const base = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true as const };
@@ -32,32 +33,50 @@ function BrandIcon({ size = 18 }: { size?: number }) {
   return <img className="gpaster-brand-image" src={gpasterIcon} width={size} height={size} alt="" draggable={false} />;
 }
 
-function formatTime(timestamp: number): string {
-  return new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(timestamp);
-}
 
 function isImageEntry(entry: ClipboardHistoryItem): entry is ClipboardImageEntry {
   return entry.kind === "image";
 }
 
 function App() {
+  const [settings, setSettings] = useState(window.gpaster.initialSystemSettings);
+  const t = (key: TranslationKey, values?: TranslationValues) => translate(settings.language, key, values);
+  const timeFormatter = useMemo(() => new Intl.DateTimeFormat(settings.locale, { hour: "2-digit", minute: "2-digit" }), [settings.locale]);
+  const formatTime = (timestamp: number) => timeFormatter.format(timestamp);
+  const displayCategory = (value: string) => value === "未分类" ? t("未分类") : value;
+  const displayContent = (entry: ClipboardHistoryItem) => isImageEntry(entry)
+    ? t("图片 {width} × {height}", { width: entry.width, height: entry.height }) : entry.content;
   const [entries, setEntries] = useState<ClipboardHistoryItem[]>([]);
   const [phrases, setPhrases] = useState<QuickPhrase[]>([]);
   const [activeModule, setActiveModule] = useState<ModuleName>("history");
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("全部");
+  const [category, setCategory] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<TranslationKey | "">("");
   const [captureIssues, setCaptureIssues] = useState<CaptureIssue[]>([]);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<TranslationKey | "">("");
   const [editor, setEditor] = useState<PhraseEditorState | null>(null);
-  const [editorError, setEditorError] = useState("");
+  const [editorError, setEditorError] = useState<TranslationKey | "">("");
   const editorInitial = useRef<{ text: string; category: string } | null>(null);
   const [preview, setPreview] = useState<{ entry: ClipboardImageEntry; dataUrl: string } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const isMac = window.gpaster.platform === "darwin";
   const images = useMemo(() => entries.filter(isImageEntry), [entries]);
-  const categories = useMemo(() => ["全部", ...Array.from(new Set(phrases.map((phrase) => phrase.category))).sort((a, b) => a.localeCompare(b, "zh-CN"))], [phrases]);
+  const categories = useMemo(() => Array.from(new Set(phrases.map((phrase) => phrase.category))).sort((a, b) => a.localeCompare(b, settings.locale)), [phrases, settings.locale]);
+
+  useEffect(() => {
+    let changed = false;
+    const unsubscribe = window.gpaster.onSystemSettingsChanged((next) => { changed = true; setSettings(next); });
+    const refresh = () => { void window.gpaster.getSystemSettings().then((next) => { if (!changed) setSettings(next); }).catch(() => undefined); };
+    refresh();
+    const onLanguageChange = () => { void window.gpaster.getSystemSettings().then(setSettings).catch(() => undefined); };
+    window.addEventListener("languagechange", onLanguageChange);
+    return () => { unsubscribe(); window.removeEventListener("languagechange", onLanguageChange); };
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = settings.language === "zh" ? "zh-CN" : "en";
+  }, [settings.language]);
 
   async function refreshHistory(): Promise<void> {
     const next = await window.gpaster.listHistory();
@@ -104,7 +123,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!categories.includes(category)) setCategory("全部");
+    if (category && !categories.includes(category)) setCategory("");
   }, [categories, category]);
 
   const activeCount = activeModule === "history" ? entries.length : activeModule === "phrases" ? phrases.length : images.length;
@@ -126,23 +145,23 @@ function App() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [editor, preview]);
+  }, [editor, preview, settings.language]);
 
   const filteredEntries = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
-    return normalized ? entries.filter((entry) => entry.content.toLocaleLowerCase().includes(normalized)) : entries;
-  }, [entries, query]);
+    return normalized ? entries.filter((entry) => entry.content.toLocaleLowerCase().includes(normalized) || displayContent(entry).toLocaleLowerCase().includes(normalized)) : entries;
+  }, [entries, query, settings.language]);
 
   const filteredPhrases = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
-    return phrases.filter((phrase) => (category === "全部" || phrase.category === category) &&
-      (!normalized || phrase.text.toLocaleLowerCase().includes(normalized) || phrase.category.toLocaleLowerCase().includes(normalized)));
-  }, [phrases, query, category]);
+    return phrases.filter((phrase) => (category === "" || phrase.category === category) &&
+      (!normalized || phrase.text.toLocaleLowerCase().includes(normalized) || phrase.category.toLocaleLowerCase().includes(normalized) || displayCategory(phrase.category).toLocaleLowerCase().includes(normalized)));
+  }, [phrases, query, category, settings.language]);
 
   const filteredImages = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
-    return images.filter((image) => !normalized || image.content.toLocaleLowerCase().includes(normalized));
-  }, [images, query]);
+    return images.filter((image) => !normalized || image.content.toLocaleLowerCase().includes(normalized) || displayContent(image).toLocaleLowerCase().includes(normalized));
+  }, [images, query, settings.language]);
 
   async function copyEntry(entry: ClipboardHistoryItem): Promise<void> {
     setError("");
@@ -166,7 +185,7 @@ function App() {
   }
 
   async function clearHistory(): Promise<void> {
-    if (!window.confirm("清空全部剪贴板历史和截图？此操作无法撤销。")) return;
+    if (!window.confirm(t("清空全部剪贴板历史和截图？此操作无法撤销。"))) return;
     setError("");
     try { await window.gpaster.clearHistory(); }
     catch { setError("清空失败，请重试。"); }
@@ -196,7 +215,7 @@ function App() {
   }
 
   async function deletePhrase(phrase: QuickPhrase): Promise<void> {
-    if (!window.confirm("删除这条常用语？")) return;
+    if (!window.confirm(t("删除这条常用语？"))) return;
     try { await window.gpaster.deletePhrase(phrase.id); await refreshPhrases(); }
     catch { setError("删除常用语失败。"); }
   }
@@ -229,7 +248,7 @@ function App() {
       setActiveModule("phrases");
       setNotice("常用语已保存。");
     } catch (saveError) {
-      setEditorError(saveError instanceof Error ? saveError.message : "保存常用语失败。");
+      setEditorError(errorKey(saveError, "保存常用语失败。"));
     }
   }
 
@@ -243,14 +262,16 @@ function App() {
     if (!editor) return;
     const initial = editorInitial.current;
     if (initial && (editor.text !== initial.text || editor.category !== initial.category) &&
-      !window.confirm("放弃未保存的常用语修改？")) return;
+      !window.confirm(t("放弃未保存的常用语修改？"))) return;
     setEditor(null);
     setEditorError("");
     editorInitial.current = null;
   }
 
   function selectModule(module: ModuleName): void { setActiveModule(module); setQuery(""); setError(""); }
-  const searchPlaceholder = activeModule === "history" ? "搜索剪贴板内容" : activeModule === "phrases" ? "搜索常用语或分类" : "搜索图片尺寸";
+  const searchPlaceholderKey = activeModule === "history" ? "搜索剪贴板内容" : activeModule === "phrases" ? "搜索常用语或分类" : "搜索图片尺寸";
+
+  const searchPlaceholder = t(searchPlaceholderKey);
 
   return (
     <main className={"app-shell" + (isMac ? " platform-mac" : "")}>
@@ -259,81 +280,81 @@ function App() {
         <span className="brand-mark"><BrandIcon size={20} /></span>
       </header>
 
-      <section className="workspace" aria-label="G-paster 工作区">
+      <section className="workspace" aria-label={t("G-paster 工作区")}>
         <div className="search-wrap">
           <Icon name="search" size={16} />
           <input ref={searchRef} aria-label={searchPlaceholder} autoFocus autoComplete="off" onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder} value={query} />
-          {query ? <button className="clear-search" type="button" aria-label="清除搜索" onClick={() => { setQuery(""); searchRef.current?.focus(); }}><Icon name="close" size={14} /></button> : <kbd>{isMac ? "⌘ F" : "Ctrl F"}</kbd>}
+          {query ? <button className="clear-search" type="button" aria-label={t("清除搜索")} onClick={() => { setQuery(""); searchRef.current?.focus(); }}><Icon name="close" size={14} /></button> : <kbd>{isMac ? "⌘ F" : "Ctrl F"}</kbd>}
         </div>
 
-        <nav className="module-tabs" aria-label="功能模块">
-          <button className={activeModule === "history" ? "module-tab active" : "module-tab"} onClick={() => selectModule("history")} type="button" aria-pressed={activeModule === "history"}><Icon name="history" size={15} /><span>{moduleNames.history}</span><span className="tab-count">{entries.length}</span></button>
-          <button className={activeModule === "phrases" ? "module-tab active" : "module-tab"} onClick={() => selectModule("phrases")} type="button" aria-pressed={activeModule === "phrases"}><Icon name="phrase" size={15} /><span>{moduleNames.phrases}</span><span className="tab-count">{phrases.length}</span></button>
-          <button className={activeModule === "screenshots" ? "module-tab active" : "module-tab"} onClick={() => selectModule("screenshots")} type="button" aria-pressed={activeModule === "screenshots"}><Icon name="image" size={15} /><span>{moduleNames.screenshots}</span><span className="tab-count">{images.length}</span></button>
+        <nav className="module-tabs" aria-label={t("功能模块")}>
+          <button className={activeModule === "history" ? "module-tab active" : "module-tab"} onClick={() => selectModule("history")} type="button" aria-pressed={activeModule === "history"}><Icon name="history" size={15} /><span>{t(moduleNames.history)}</span><span className="tab-count">{entries.length}</span></button>
+          <button className={activeModule === "phrases" ? "module-tab active" : "module-tab"} onClick={() => selectModule("phrases")} type="button" aria-pressed={activeModule === "phrases"}><Icon name="phrase" size={15} /><span>{t(moduleNames.phrases)}</span><span className="tab-count">{phrases.length}</span></button>
+          <button className={activeModule === "screenshots" ? "module-tab active" : "module-tab"} onClick={() => selectModule("screenshots")} type="button" aria-pressed={activeModule === "screenshots"}><Icon name="image" size={15} /><span>{t(moduleNames.screenshots)}</span><span className="tab-count">{images.length}</span></button>
         </nav>
 
-        {error && <div className="error-message" role="alert">{error}<button type="button" aria-label="关闭提示" onClick={() => setError("")}><Icon name="close" size={13} /></button></div>}
-        {captureIssues.map((issue) => <div className="error-message" role="status" key={issue.source}>{issue.message}</div>)}
-        {notice && <div className="notice-message" role="status">{notice}<button type="button" aria-label="关闭提示" onClick={() => setNotice("")}><Icon name="close" size={13} /></button></div>}
+        {error && <div className="error-message" role="alert">{t(error)}<button type="button" aria-label={t("关闭提示")} onClick={() => setError("")}><Icon name="close" size={13} /></button></div>}
+        {captureIssues.map((issue) => <div className="error-message" role="status" key={issue.source}>{translateMessage(settings.language, issue.message)}</div>)}
+        {notice && <div className="notice-message" role="status">{t(notice)}<button type="button" aria-label={t("关闭提示")} onClick={() => setNotice("")}><Icon name="close" size={13} /></button></div>}
 
-        {activeModule === "history" && <section className="history-panel" aria-label="剪贴板历史">
-          {loading ? <div className="empty-state"><span className="loading-dot" /><span>正在读取记录</span></div> : filteredEntries.length > 0 ? (
-            <ul className="history-list" aria-label="剪贴板记录">
+        {activeModule === "history" && <section className="history-panel" aria-label={t("剪贴板历史")}>
+          {loading ? <div className="empty-state"><span className="loading-dot" /><span>{t("正在读取记录")}</span></div> : filteredEntries.length > 0 ? (
+            <ul className="history-list" aria-label={t("剪贴板记录")}>
               {filteredEntries.map((entry) => <li className="history-item" key={entry.id}>
-                {isImageEntry(entry) ? <button className="history-thumb-button" type="button" draggable onDragStart={(event) => startImageDrag(event, entry.id)} onClick={() => void openImage(entry)} aria-label="预览图片"><img className="history-thumb" src={entry.previewDataUrl} alt="" /></button> : <span className={entry.kind === "link" ? "entry-kind link-kind" : "entry-kind"}><Icon name={entry.kind === "link" ? "link" : "text"} size={16} /></span>}
-                <button className="entry-content" type="button" onClick={() => isImageEntry(entry) ? void openImage(entry) : void copyEntry(entry)} title={entry.content} aria-label={isImageEntry(entry) ? "预览图片" : `复制：${entry.content.slice(0, 80)}`}>
-                  <span className="entry-preview">{entry.content}</span>
-                  <span className="entry-meta"><span>{entry.kind === "image" ? `${entry.width} × ${entry.height}` : entry.kind === "link" ? "链接" : "文字"}</span><span className="meta-separator" /><time dateTime={new Date(entry.copiedAt).toISOString()}>{formatTime(entry.copiedAt)}</time></span>
+                {isImageEntry(entry) ? <button className="history-thumb-button" type="button" draggable onDragStart={(event) => startImageDrag(event, entry.id)} onClick={() => void openImage(entry)} aria-label={t("预览图片")}><img className="history-thumb" src={entry.previewDataUrl} alt="" /></button> : <span className={entry.kind === "link" ? "entry-kind link-kind" : "entry-kind"}><Icon name={entry.kind === "link" ? "link" : "text"} size={16} /></span>}
+                <button className="entry-content" type="button" onClick={() => isImageEntry(entry) ? void openImage(entry) : void copyEntry(entry)} title={displayContent(entry)} aria-label={isImageEntry(entry) ? t("预览图片") : t("复制：{content}", { content: entry.content.slice(0, 80) })}>
+                  <span className="entry-preview">{displayContent(entry)}</span>
+                  <span className="entry-meta"><span>{entry.kind === "image" ? `${entry.width} × ${entry.height}` : entry.kind === "link" ? t("链接") : t("文字")}</span><span className="meta-separator" /><time dateTime={new Date(entry.copiedAt).toISOString()}>{formatTime(entry.copiedAt)}</time></span>
                 </button>
                 <div className="entry-actions">
-                  {entry.kind !== "image" && <button className="icon-button" type="button" onClick={() => openEditor({ sourceHistoryId: entry.id, originalText: entry.content, text: entry.content, category: "未分类" })} aria-label="保存为常用语" title="保存为常用语"><Icon name="bookmark" size={15} /></button>}
-                  {isImageEntry(entry) && <button className={entry.isFavorite ? "icon-button favorite active" : "icon-button favorite"} type="button" onClick={() => void toggleFavorite(entry)} aria-label={entry.isFavorite ? "取消收藏" : "收藏图片"} title={entry.isFavorite ? "取消收藏" : "收藏"}><Icon name="star" size={15} /></button>}
-                  <button className="icon-button copy-button" type="button" onClick={() => void copyEntry(entry)} aria-label={entry.kind === "image" ? "复制图片" : "复制这条记录"} title={entry.kind === "image" ? "复制图片" : "复制"}><Icon name="copy" size={15} /></button>
-                  <button className="icon-button delete-button" type="button" onClick={() => void deleteEntry(entry.id)} aria-label="删除这条记录" title="删除"><Icon name="trash" size={15} /></button>
+                  {entry.kind !== "image" && <button className="icon-button" type="button" onClick={() => openEditor({ sourceHistoryId: entry.id, originalText: entry.content, text: entry.content, category: "未分类" })} aria-label={t("保存为常用语")} title={t("保存为常用语")}><Icon name="bookmark" size={15} /></button>}
+                  {isImageEntry(entry) && <button className={entry.isFavorite ? "icon-button favorite active" : "icon-button favorite"} type="button" onClick={() => void toggleFavorite(entry)} aria-label={t(entry.isFavorite ? "取消收藏" : "收藏图片")} title={t(entry.isFavorite ? "取消收藏" : "收藏")}><Icon name="star" size={15} /></button>}
+                  <button className="icon-button copy-button" type="button" onClick={() => void copyEntry(entry)} aria-label={t(entry.kind === "image" ? "复制图片" : "复制这条记录")} title={t(entry.kind === "image" ? "复制图片" : "复制")}><Icon name="copy" size={15} /></button>
+                  <button className="icon-button delete-button" type="button" onClick={() => void deleteEntry(entry.id)} aria-label={t("删除这条记录")} title={t("删除")}><Icon name="trash" size={15} /></button>
                 </div>
               </li>)}
             </ul>
-          ) : <div className="empty-state"><span className="empty-icon">{query ? <Icon name="search" size={18} /> : <BrandIcon size={19} />}</span><strong>{query ? "没有找到匹配内容" : "这里还没有剪贴板记录"}</strong><span>{query ? "试试更短的关键词。" : "复制文字或图片，G-paster 会自动收好。"}</span></div>}
-          {entries.length > 0 && <div className="history-toolbar history-footer">{query && <span className="result-count">找到 {filteredEntries.length} 条</span>}<button className="clear-all" type="button" onClick={() => void clearHistory()}>清空记录</button></div>}
+          ) : <div className="empty-state"><span className="empty-icon">{query ? <Icon name="search" size={18} /> : <BrandIcon size={19} />}</span><strong>{t(query ? "没有找到匹配内容" : "这里还没有剪贴板记录")}</strong><span>{t(query ? "试试更短的关键词。" : "复制文字或图片，G-paster 会自动收好。")}</span></div>}
+          {entries.length > 0 && <div className="history-toolbar history-footer">{query && <span className="result-count">{t("找到 {count} 条", { count: filteredEntries.length })}</span>}<button className="clear-all" type="button" onClick={() => void clearHistory()}>{t("清空记录")}</button></div>}
         </section>}
 
-        {activeModule === "phrases" && <section className="module-panel" aria-label="常用语">
+        {activeModule === "phrases" && <section className="module-panel" aria-label={t("常用语")}>
           <div className="module-toolbar">
-            <label className="category-select-label"><span className="sr-only">按分类筛选</span><select className="category-select" value={category} onChange={(event) => setCategory(event.target.value)}>{categories.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+            <label className="category-select-label"><span className="sr-only">{t("按分类筛选")}</span><select className="category-select" value={category} onChange={(event) => setCategory(event.target.value)}><option value="">{t("全部")}</option>{categories.map((item) => <option key={item} value={item}>{displayCategory(item)}</option>)}</select></label>
             <span className="toolbar-spacer" />
-            <button className="primary-button" type="button" onClick={() => openEditor({ text: "", category: category === "全部" ? "未分类" : category })}><Icon name="plus" size={15} />新增</button>
+            <button className="primary-button" type="button" onClick={() => openEditor({ text: "", category: category === "" ? "未分类" : category })}><Icon name="plus" size={15} />{t("新增")}</button>
           </div>
-          {loading ? <div className="empty-state"><span className="loading-dot" /><span>正在读取常用语</span></div> : filteredPhrases.length ? <ul className="phrase-list" aria-label="常用语列表">
+          {loading ? <div className="empty-state"><span className="loading-dot" /><span>{t("正在读取常用语")}</span></div> : filteredPhrases.length ? <ul className="phrase-list" aria-label={t("常用语列表")}>
             {filteredPhrases.map((phrase) => <li className="phrase-item" key={phrase.id}>
-              <button className="phrase-copy-area" type="button" onClick={() => void copyPhrase(phrase)} title="点击复制"><span className="phrase-text">{phrase.text}</span><span className="phrase-meta">{phrase.category}</span></button>
-              <div className="entry-actions"><button className="icon-button" type="button" onClick={() => openEditor({ id: phrase.id, text: phrase.text, category: phrase.category })} aria-label="编辑常用语" title="编辑"><Icon name="edit" size={15} /></button><button className="icon-button delete-button" type="button" onClick={() => void deletePhrase(phrase)} aria-label="删除常用语" title="删除"><Icon name="trash" size={15} /></button></div>
+              <button className="phrase-copy-area" type="button" onClick={() => void copyPhrase(phrase)} title={t("点击复制")}><span className="phrase-text">{phrase.text}</span><span className="phrase-meta">{displayCategory(phrase.category)}</span></button>
+              <div className="entry-actions"><button className="icon-button" type="button" onClick={() => openEditor({ id: phrase.id, text: phrase.text, category: phrase.category })} aria-label={t("编辑常用语")} title={t("编辑")}><Icon name="edit" size={15} /></button><button className="icon-button delete-button" type="button" onClick={() => void deletePhrase(phrase)} aria-label={t("删除常用语")} title={t("删除")}><Icon name="trash" size={15} /></button></div>
             </li>)}
-          </ul> : <div className="empty-state"><span className="empty-icon"><Icon name={query ? "search" : "phrase"} size={18} /></span><strong>{query ? "没有找到常用语" : "常用语还空着"}</strong><span>{query ? "换个关键词或分类试试。" : "把常用文字收在这里，之后一点就能复制。"}</span><button className="text-action" type="button" onClick={() => openEditor({ text: "", category: "未分类" })}>创建第一条</button></div>}
+          </ul> : <div className="empty-state"><span className="empty-icon"><Icon name={query ? "search" : "phrase"} size={18} /></span><strong>{t(query ? "没有找到常用语" : "常用语还空着")}</strong><span>{t(query ? "换个关键词或分类试试。" : "把常用文字收在这里，之后一点就能复制。")}</span><button className="text-action" type="button" onClick={() => openEditor({ text: "", category: "未分类" })}>{t("创建第一条")}</button></div>}
         </section>}
 
-        {activeModule === "screenshots" && <section className="module-panel screenshot-panel" aria-label="截图中转站">
-          {filteredImages.length ? <div className="image-grid" aria-label="截图列表">
+        {activeModule === "screenshots" && <section className="module-panel screenshot-panel" aria-label={t("截图中转站")}>
+          {filteredImages.length ? <div className="image-grid" aria-label={t("截图列表")}>
             {filteredImages.map((image) => <article className="image-card" key={image.id}>
-              <button className="image-preview-button" type="button" draggable onDragStart={(event) => startImageDrag(event, image.id)} onClick={() => void openImage(image)} aria-label={`预览图片 ${image.width} × ${image.height}`}><img src={image.previewDataUrl} alt="剪贴板图片" /><span className="image-dimensions">{image.width} × {image.height}</span></button>
-              <div className="image-card-footer"><time dateTime={new Date(image.copiedAt).toISOString()}>{formatTime(image.copiedAt)}</time><div className="entry-actions"><button className={image.isFavorite ? "icon-button favorite active" : "icon-button favorite"} type="button" onClick={() => void toggleFavorite(image)} aria-label={image.isFavorite ? "取消收藏" : "收藏图片"} title="收藏"><Icon name="star" size={14} /></button><button className="icon-button" type="button" onClick={() => void copyEntry(image)} aria-label="复制图片回剪贴板" title="复制图片"><Icon name="copy" size={14} /></button><button className="icon-button" type="button" onClick={() => void saveImage(image.id)} aria-label="保存图片到本地" title="保存到本地"><Icon name="save" size={14} /></button><button className="icon-button delete-button" type="button" onClick={() => void deleteEntry(image.id)} aria-label="删除图片" title="删除"><Icon name="trash" size={14} /></button></div></div>
+              <button className="image-preview-button" type="button" draggable onDragStart={(event) => startImageDrag(event, image.id)} onClick={() => void openImage(image)} aria-label={t("预览图片 {width} × {height}", { width: image.width, height: image.height })}><img src={image.previewDataUrl} alt={t("剪贴板图片")} /><span className="image-dimensions">{image.width} × {image.height}</span></button>
+              <div className="image-card-footer"><time dateTime={new Date(image.copiedAt).toISOString()}>{formatTime(image.copiedAt)}</time><div className="entry-actions"><button className={image.isFavorite ? "icon-button favorite active" : "icon-button favorite"} type="button" onClick={() => void toggleFavorite(image)} aria-label={t(image.isFavorite ? "取消收藏" : "收藏图片")} title={t("收藏")}><Icon name="star" size={14} /></button><button className="icon-button" type="button" onClick={() => void copyEntry(image)} aria-label={t("复制图片回剪贴板")} title={t("复制图片")}><Icon name="copy" size={14} /></button><button className="icon-button" type="button" onClick={() => void saveImage(image.id)} aria-label={t("保存图片到本地")} title={t("保存到本地")}><Icon name="save" size={14} /></button><button className="icon-button delete-button" type="button" onClick={() => void deleteEntry(image.id)} aria-label={t("删除图片")} title={t("删除")}><Icon name="trash" size={14} /></button></div></div>
             </article>)}
-          </div> : <div className="empty-state"><span className="empty-icon"><Icon name={query ? "search" : "image"} size={18} /></span><strong>{query ? "没有找到这类图片" : "截图中转站还空着"}</strong><span>{query ? "试试输入图片尺寸。" : "复制或保存截图后，会自动收集最近 10 张。"}</span></div>}
-          <div className="module-toolbar screenshot-footer"><span className="toolbar-caption">最近 {images.length} / 10 张</span><span className="toolbar-spacer" />{images.some((image) => image.isFavorite) && <span className="favorite-caption"><Icon name="star" size={13} />已收藏 {images.filter((image) => image.isFavorite).length}</span>}</div>
+          </div> : <div className="empty-state"><span className="empty-icon"><Icon name={query ? "search" : "image"} size={18} /></span><strong>{t(query ? "没有找到这类图片" : "截图中转站还空着")}</strong><span>{t(query ? "试试输入图片尺寸。" : "复制或保存截图后，会自动收集最近 10 张。")}</span></div>}
+          <div className="module-toolbar screenshot-footer"><span className="toolbar-caption">{t("最近 {count} / 10 张", { count: images.length })}</span><span className="toolbar-spacer" />{images.some((image) => image.isFavorite) && <span className="favorite-caption"><Icon name="star" size={13} />{t("已收藏 {count}", { count: images.filter((image) => image.isFavorite).length })}</span>}</div>
         </section>}
       </section>
 
       {editor && <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) closeEditor(); }}><form className="phrase-dialog" role="dialog" aria-modal="true" aria-labelledby="phrase-dialog-title" onSubmit={(event) => void savePhrase(event)}>
-        <div className="dialog-heading"><h2 id="phrase-dialog-title">{editor.id ? "编辑常用语" : editor.sourceHistoryId ? "保存为常用语" : "新增常用语"}</h2><button className="icon-button" type="button" onClick={closeEditor} aria-label="关闭"><Icon name="close" size={16} /></button></div>
-        <label className="field-label" htmlFor="phrase-content">内容</label><textarea id="phrase-content" autoFocus maxLength={20000} required rows={4} value={editor.text} onChange={(event) => setEditor({ ...editor, text: event.target.value })} placeholder="输入常用文字" />
-        <label className="field-label" htmlFor="phrase-category">分类</label><input id="phrase-category" className="category-input" maxLength={50} value={editor.category} onChange={(event) => setEditor({ ...editor, category: event.target.value })} placeholder="例如：工作、回复" />
-        {editorError && <div className="error-message" role="alert">{editorError}</div>}
-        <div className="dialog-actions"><button className="secondary-button" type="button" onClick={closeEditor}>取消</button><button className="primary-button" type="submit">保存</button></div>
+        <div className="dialog-heading"><h2 id="phrase-dialog-title">{t(editor.id ? "编辑常用语" : editor.sourceHistoryId ? "保存为常用语" : "新增常用语")}</h2><button className="icon-button" type="button" onClick={closeEditor} aria-label={t("关闭")}><Icon name="close" size={16} /></button></div>
+        <label className="field-label" htmlFor="phrase-content">{t("内容")}</label><textarea id="phrase-content" autoFocus maxLength={20000} required rows={4} value={editor.text} onChange={(event) => setEditor({ ...editor, text: event.target.value })} placeholder={t("输入常用文字")} />
+        <label className="field-label" htmlFor="phrase-category">{t("分类")}</label><input id="phrase-category" className="category-input" maxLength={50} value={displayCategory(editor.category)} onChange={(event) => setEditor({ ...editor, category: editor.category === "未分类" && event.target.value === t("未分类") ? "未分类" : event.target.value })} placeholder={t("例如：工作、回复")} />
+        {editorError && <div className="error-message" role="alert">{t(editorError)}</div>}
+        <div className="dialog-actions"><button className="secondary-button" type="button" onClick={closeEditor}>{t("取消")}</button><button className="primary-button" type="submit">{t("保存")}</button></div>
       </form></div>}
 
-      {preview && <div className="modal-scrim image-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreview(null); }}><section className="image-dialog" role="dialog" aria-modal="true" aria-label="图片预览">
-        <div className="dialog-heading"><span className="preview-title">{preview.entry.width} × {preview.entry.height}</span><button className="icon-button" type="button" onClick={() => setPreview(null)} aria-label="关闭预览"><Icon name="close" size={16} /></button></div>
-        <div className="large-image-wrap"><img draggable onDragStart={(event) => startImageDrag(event, preview.entry.id)} src={preview.dataUrl} alt={`剪贴板图片，${preview.entry.width} × ${preview.entry.height}`} /></div>
-        <div className="preview-actions"><button className={preview.entry.isFavorite ? "secondary-button favorite-button active" : "secondary-button favorite-button"} type="button" onClick={() => void toggleFavorite(preview.entry)}><Icon name="star" size={15} />{preview.entry.isFavorite ? "已收藏" : "收藏"}</button><button className="secondary-button" type="button" onClick={() => void saveImage(preview.entry.id)}><Icon name="save" size={15} />保存</button><button className="primary-button" type="button" onClick={() => void copyEntry(preview.entry)}><Icon name="copy" size={15} />复制图片</button></div>
+      {preview && <div className="modal-scrim image-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreview(null); }}><section className="image-dialog" role="dialog" aria-modal="true" aria-label={t("图片预览")}>
+        <div className="dialog-heading"><span className="preview-title">{preview.entry.width} × {preview.entry.height}</span><button className="icon-button" type="button" onClick={() => setPreview(null)} aria-label={t("关闭预览")}><Icon name="close" size={16} /></button></div>
+        <div className="large-image-wrap"><img draggable onDragStart={(event) => startImageDrag(event, preview.entry.id)} src={preview.dataUrl} alt={t("剪贴板图片，{width} × {height}", { width: preview.entry.width, height: preview.entry.height })} /></div>
+        <div className="preview-actions"><button className={preview.entry.isFavorite ? "secondary-button favorite-button active" : "secondary-button favorite-button"} type="button" onClick={() => void toggleFavorite(preview.entry)}><Icon name="star" size={15} />{t(preview.entry.isFavorite ? "已收藏" : "收藏")}</button><button className="secondary-button" type="button" onClick={() => void saveImage(preview.entry.id)}><Icon name="save" size={15} />{t("保存")}</button><button className="primary-button" type="button" onClick={() => void copyEntry(preview.entry)}><Icon name="copy" size={15} />{t("复制图片")}</button></div>
       </section></div>}
     </main>
   );

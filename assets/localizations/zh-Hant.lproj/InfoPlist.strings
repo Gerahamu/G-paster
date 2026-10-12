@@ -1,0 +1,3 @@
+"NSDesktopFolderUsageDescription" = "G-paster 需要读取桌面中新生成的截图，保存独立副本到本地截图中转站，原文件保持不变。";
+"NSDocumentsFolderUsageDescription" = "当截图保存在文稿目录时，G-paster 需要读取新截图并保存独立副本。";
+"NSDownloadsFolderUsageDescription" = "当截图保存在下载目录时，G-paster 需要读取新截图并保存独立副本。";

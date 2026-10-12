@@ -1,3 +1,10 @@
+import type { UiLanguage } from "./i18n";
+
+export interface SystemSettings {
+  language: UiLanguage;
+  locale: string;
+}
+
 export type ClipboardEntryKind = "text" | "link";
 
 export interface ClipboardEntry {
@@ -45,6 +52,9 @@ export interface QuickPhraseUpdate extends QuickPhraseDraft {
 }
 
 export interface GpasterBridge {
+  readonly initialSystemSettings: SystemSettings;
+  getSystemSettings(): Promise<SystemSettings>;
+  onSystemSettingsChanged(callback: (settings: SystemSettings) => void): () => void;
   listCaptureIssues(): Promise<CaptureIssue[]>;
   onCaptureIssuesChanged(callback: (issues: CaptureIssue[]) => void): () => void;
   listHistory(): Promise<ClipboardHistoryItem[]>;

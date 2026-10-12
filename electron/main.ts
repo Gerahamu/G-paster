@@ -8,6 +8,7 @@ import {
   ipcMain,
   Menu,
   nativeImage,
+  nativeTheme,
   screen,
   Tray,
   type IpcMainEvent,
@@ -18,7 +19,7 @@ import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { CaptureIssue, ClipboardHistoryItem, QuickPhraseDraft, QuickPhraseUpdate } from "../src/shared/contracts";
+import type { CaptureIssue, ClipboardHistoryItem, QuickPhraseDraft, QuickPhraseUpdate, SystemSettings } from "../src/shared/contracts";
 import { HistoryStore } from "./history-store";
 import { ImageStore, type StoredImage } from "./image-store";
 import { PhraseStore } from "./phrase-store";
@@ -26,6 +27,8 @@ import { getMacScreenshotDirectories, ScreenshotMonitor } from "./screenshot-mon
 import { getDevServerOrigin, isTrustedPageUrl, type TrustedOriginPolicy } from "./trusted-origin";
 import { decodeImageBuffer } from "./image-codec";
 import { readImageItems } from "./clipboard-images";
+import { readSystemSettings } from "./system-settings";
+import { translate, type TranslationKey } from "../src/shared/i18n";
 
 const APP_NAME = "G-paster";
 const GLOBAL_SHORTCUT = process.platform === "darwin" ? "Control+C" : "Control+Shift+G";
@@ -51,6 +54,26 @@ let imageCaptureGeneration = 0;
 let historyPublishGeneration = 0;
 const imagePreviewCache = new Map<string, { hash: string; dataUrl: string }>();
 const captureIssues = new Map<CaptureIssue["source"], CaptureIssue>();
+let currentSystemSettings: SystemSettings | null = null;
+
+function refreshSystemSettings(): SystemSettings {
+  const next = readSystemSettings();
+  const changed = next.language !== currentSystemSettings?.language || next.locale !== currentSystemSettings?.locale;
+  currentSystemSettings = next;
+  if (changed) {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("system:settings-changed", next);
+    updateTrayMenu();
+  }
+  return next;
+}
+
+function nativeText(key: TranslationKey): string {
+  return translate((currentSystemSettings ?? readSystemSettings()).language, key);
+}
+
+function windowBackground(): string {
+  return nativeTheme.shouldUseDarkColors ? "#171d26" : "#f4f6f9";
+}
 
 function reportCaptureIssue(source: CaptureIssue["source"], message: string | null): void {
   if ((captureIssues.get(source)?.message ?? null) === message) return;
@@ -66,9 +89,16 @@ function rememberClipboardText(value: string): void {
 
 app.setName(APP_NAME);
 app.setAppUserModelId("com.gpaster.desktop");
+nativeTheme.themeSource = "system";
+nativeTheme.on("updated", () => {
+  if (!app.isReady()) return;
+  refreshSystemSettings();
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setBackgroundColor(windowBackground());
+});
 
 function showWindow(): void {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  refreshSystemSettings();
   const wasVisible = mainWindow.isVisible();
   if (!wasVisible) {
     const bounds = mainWindow.getBounds();
@@ -173,6 +203,10 @@ function isStringRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function registerHistoryIpc(): void {
+  ipcMain.handle("system:settings", (event) => {
+    assertTrustedWindow(event);
+    return refreshSystemSettings();
+  });
   ipcMain.handle("capture:issues", (event) => {
     assertTrustedWindow(event);
     return [...captureIssues.values()];
@@ -264,9 +298,9 @@ function registerHistoryIpc(): void {
     const bytes = await imageStore.read(id);
     if (!bytes) return false;
     const result = await showImageSaveDialog({
-      title: "保存图片",
+      title: nativeText("保存图片"),
       defaultPath: join(app.getPath("pictures"), `g-paster-${Date.now()}.png`),
-      filters: [{ name: "PNG 图片", extensions: ["png"] }]
+      filters: [{ name: nativeText("PNG 图片"), extensions: ["png"] }]
     });
     if (result.canceled || !result.filePath) return false;
     await writeFile(result.filePath, bytes);
@@ -343,6 +377,15 @@ function registerWindowIpc(): void {
   });
 }
 
+function updateTrayMenu(): void {
+  if (!tray || tray.isDestroyed()) return;
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: nativeText("打开 G-paster"), click: showWindow },
+    { type: "separator" },
+    { label: nativeText("退出 G-paster"), click: () => { isQuitting = true; app.quit(); } }
+  ]));
+}
+
 function createTray(): void {
   const isMacTemplate = process.platform === "darwin";
   const iconPath = join(app.getAppPath(), "assets", isMacTemplate ? "trayTemplate.png" : "GpasterTray.png");
@@ -358,19 +401,8 @@ function createTray(): void {
   if (isMacTemplate) image.setTemplateImage(true);
   tray = new Tray(image);
   tray.setToolTip(APP_NAME);
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: "打开 G-paster", click: showWindow },
-      { type: "separator" },
-      {
-        label: "退出 G-paster",
-        click: () => {
-          isQuitting = true;
-          app.quit();
-        }
-      }
-    ])
-  );
+  updateTrayMenu();
+  tray.on("right-click", () => { refreshSystemSettings(); });
   tray.on("click", showWindow);
 }
 
@@ -384,7 +416,7 @@ function createWindow(): void {
     show: false,
     title: APP_NAME,
     icon: join(app.getAppPath(), "assets", "G-paster-icon.png"),
-    backgroundColor: "#f4f6f9",
+    backgroundColor: windowBackground(),
     autoHideMenuBar: true,
     alwaysOnTop: true,
     skipTaskbar: process.platform === "win32",
@@ -392,7 +424,8 @@ function createWindow(): void {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      additionalArguments: [`--gpaster-system-settings=${encodeURIComponent(JSON.stringify(refreshSystemSettings()))}`]
     }
   };
   if (process.platform === "darwin") {
@@ -505,6 +538,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on("second-instance", showWindow);
 
   app.whenReady().then(async () => {
+    refreshSystemSettings();
     const userData = app.getPath("userData");
     historyStore = new HistoryStore(join(userData, "history.json"));
     imageStore = new ImageStore(join(userData, "image-history.json"));
@@ -557,7 +591,7 @@ if (!app.requestSingleInstanceLock()) {
     });
   }).catch((error: unknown) => {
     console.error("G-paster could not start:", error);
-    dialog.showErrorBox("G-paster 无法启动", "本地数据无法读取。请检查应用数据目录或备份文件后重试。");
+    dialog.showErrorBox(nativeText("G-paster 无法启动"), nativeText("本地数据无法读取。请检查应用数据目录或备份文件后重试。"));
     app.quit();
   });
 }

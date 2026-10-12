@@ -8,7 +8,7 @@
 
 一个常驻 macOS 菜单栏的轻量剪贴板工具。<br />剪贴板、常用语、截图中转站，在一个紧凑面板里接着用。
 
-![版本 0.1.1](https://img.shields.io/badge/version-0.1.1-355de7?style=flat-square&labelColor=202a38) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-8691a1?style=flat-square&labelColor=202a38) ![本地存储](https://img.shields.io/badge/data-local%20only-579a86?style=flat-square&labelColor=202a38)
+![版本 0.1.2](https://img.shields.io/badge/version-0.1.2-355de7?style=flat-square&labelColor=202a38) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-8691a1?style=flat-square&labelColor=202a38) ![本地存储](https://img.shields.io/badge/data-local%20only-579a86?style=flat-square&labelColor=202a38)
 
 [认识 G-paster](#三个模块一个面板) · [开始使用](#开始使用) · [数据与隐私](#数据留在你的电脑上) · [参与开发](#开发与构建)
 
@@ -37,6 +37,7 @@
 ### 用完即收，随时再开
 
 - **住在菜单栏。** macOS 上后台运行，默认不占据 Dock；点击菜单栏图标即可打开。
+- **跟随系统。** 界面语言由系统首选语言决定：中文系统使用中文，其余语言使用英文；时间格式跟随系统区域。浅色／深色外观自动跟随系统变化，应用内没有语言或主题切换设置。修改系统语言后，如 macOS 提示重启应用，请按提示重新启动。
 - **一个紧凑面板。** 默认 400 × 460 px，空记录状态约 400 × 340 px；点击窗口外部或关闭窗口后继续在后台运行。
 - **复制 → 搜索 → 再复制 → 粘贴。** 在面板里找到内容并重新复制，回到目标应用使用正常的粘贴操作。
 
@@ -141,6 +142,7 @@ G-paster 无需账户或云端服务，不向外部服务上传剪贴板内容�
 | `npm test` | 执行存储、受信页面、图片表示和截图监控回归测试 |
 | `npm run test:images:electron` | 在真实 Electron 中验证图片解码、存储、缩略图和截图导入（隔离数据，不修改系统剪贴板） |
 | `npm run test:images:app` | 用隔离数据和可控剪贴板输入，验证实际主进程、preload、UI、错误恢复与清空竞态 |
+| `npm run test:system:app` | 用隔离数据验证中英文、浅深色、原生菜单和未保存输入保留（不修改系统设置） |
 | `npm run build` | 编译 Electron 主进程并构建前端 |
 | `npm run package:mac` | 生成 macOS arm64 应用 |
 
@@ -170,6 +172,6 @@ scripts/                开发启动及 macOS 后台应用配置
 
 [反馈问题](https://github.com/Gerahamu/G-paster/issues) · [浏览源码](https://github.com/Gerahamu/G-paster)
 
-<sub>当前版本 0.1.1 · macOS arm64 优先 · 仓库尚未添加开源许可证</sub>
+<sub>当前版本 0.1.2 · macOS arm64 优先 · 仓库尚未添加开源许可证</sub>
 
 </div>

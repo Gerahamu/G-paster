@@ -1,0 +1,3 @@
+"NSDesktopFolderUsageDescription" = "G-paster reads new screenshots on your Desktop and keeps independent copies. Your original files stay unchanged.";
+"NSDocumentsFolderUsageDescription" = "G-paster reads new screenshots saved in Documents and keeps independent copies.";
+"NSDownloadsFolderUsageDescription" = "G-paster reads new screenshots saved in Downloads and keeps independent copies.";
