@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1060" height="460" viewBox="0 0 1060 460" role="img" aria-labelledby="title desc">
+<title id="title">G-paster · 复制之后，还有下一步</title>
+<desc id="desc">浅蓝色通透风格的产品介绍插图，右侧为使用虚构内容的 G-paster 界面示意。</desc>
+<defs>
+  <linearGradient id="backdrop" x2="1" y2="1"><stop stop-color="#161c27"/><stop offset="1" stop-color="#222d43"/></linearGradient>
+  <radialGradient id="glow"><stop stop-color="#a6c2ff" stop-opacity=".22"/><stop offset="1" stop-color="#a6c2ff" stop-opacity="0"/></radialGradient>
+  <linearGradient id="landscape" x2="1" y2="1"><stop stop-color="#dce8ff"/><stop offset="1" stop-color="#e7f1ec"/></linearGradient>
+</defs>
+<g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+<rect x=".5" y=".5" width="1059" height="459" rx="24" fill="url(#backdrop)" stroke="#354156"/>
+<ellipse cx="865" cy="170" rx="310" ry="240" fill="url(#glow)"/>
+<path d="M0 367 Q280 265 535 354 T1060 321" fill="none" stroke="#354156" stroke-opacity=".6"/>
+<text x="54" y="68" fill="#a6b4ca" font-size="12" font-weight="600" letter-spacing="2.3">COPY. KEEP. CONTINUE.</text>
+<text x="54" y="145" fill="#f2f5fc" font-size="46" font-weight="650" letter-spacing="-1.5">复制之后，</text>
+<text x="54" y="205" fill="#f2f5fc" font-size="46" font-weight="650" letter-spacing="-1.5">还有下一步。</text>
+<text x="56" y="252" fill="#a6b4ca" font-size="16">文字、常用回复、最近的截图。</text>
+<text x="56" y="279" fill="#a6b4ca" font-size="16">轻轻唤出，接着使用。</text>
+<g transform="translate(54 326)">
+<rect width="140" height="82" rx="14" fill="#253146" fill-opacity=".55" stroke="#354156"/>
+<text x="16" y="34" fill="#f2f5fc" font-size="25" font-weight="600">300</text>
+<text x="16" y="60" fill="#a6b4ca" font-size="12">条文本与链接</text>
+<rect x="150" width="140" height="82" rx="14" fill="#253146" fill-opacity=".55" stroke="#354156"/>
+<text x="166" y="34" fill="#f2f5fc" font-size="25" font-weight="600">10</text>
+<text x="166" y="60" fill="#a6b4ca" font-size="12">张最近图片</text>
+<rect x="300" width="140" height="82" rx="14" fill="#253146" fill-opacity=".55" stroke="#354156"/>
+<text x="316" y="34" fill="#f2f5fc" font-size="21" font-weight="600" letter-spacing="1">LOCAL</text>
+<text x="316" y="60" fill="#a6b4ca" font-size="12">内容留在本地</text>
+</g>
+<g transform="translate(610 30)" fill="#202a38">
+<rect width="394" height="382" rx="22" fill="#f4f6f9" stroke="#d7dfe9"/>
+<circle cx="20" cy="23" r="6" fill="#ff6057"/><circle cx="39" cy="23" r="6" fill="#ffbd2e"/><circle cx="58" cy="23" r="6" fill="#28c840"/>
+<text x="79" y="28" font-size="14" font-weight="650">G-paster</text>
+<rect x="14" y="51" width="366" height="36" rx="10" fill="#fff" stroke="#e0e6ef"/>
+<g stroke="#8a97ab" fill="none" stroke-width="1.6"><circle cx="30" cy="68" r="5"/><path d="m34 72 4 4"/></g>
+<text x="46" y="74" font-size="12" fill="#8a97ab">搜索剪贴板内容</text>
+<rect x="331" y="59" width="38" height="20" rx="5" fill="#f7f9fc" stroke="#e3e8f1"/>
+<text x="339" y="73" font-size="10" fill="#8290a4">⌘ F</text>
+<rect x="14" y="95" width="366" height="36" rx="10" fill="#eaf0f5" stroke="#e4e9f0"/>
+<rect x="18" y="99" width="119" height="28" rx="8" fill="#fff"/>
+<text x="36" y="117" font-size="12" font-weight="600">剪贴板</text>
+<rect x="87" y="104" width="26" height="18" rx="5" fill="#edf1ff"/><text x="97" y="117" font-size="11" fill="#355de7">3</text>
+<text x="158" y="117" font-size="12" fill="#7b889b">常用语  2</text>
+<text x="283" y="117" font-size="12" fill="#7b889b">截图  1</text>
+<g transform="translate(14 143)">
+<rect width="366" height="56" rx="11" fill="#fff" stroke="#e2e7ef"/>
+<rect x="10" y="12" width="32" height="32" rx="8" fill="#f1f4f9"/>
+<g fill="none" stroke="#8090a8" stroke-width="1.5"><rect x="20" y="19" width="13" height="17" rx="2"/><path d="M23 24h7m-7 4h7m-7 4h4"/></g>
+<text x="53" y="25" font-size="12">把重复的输入，留给常用语。</text>
+<text x="53" y="43" font-size="10" fill="#8a97ab">文字 · 刚刚</text>
+<g fill="none" stroke="#8a97ab" stroke-width="1.4"><rect x="309" y="23" width="11" height="12" rx="2"/><path d="M317 23v-4h-11v12h3"/><path d="M336 23h11m-9 0v13h7V23m-5-3h3"/></g>
+</g>
+<g transform="translate(14 207)">
+<rect width="366" height="56" rx="11" fill="#fff" stroke="#e2e7ef"/>
+<rect x="10" y="12" width="32" height="32" rx="8" fill="#edf1ff"/>
+<g stroke="#708ac2" fill="none" stroke-width="1.5"><path d="m21 29-2 2a4 4 0 0 0 6 5l4-4m-4-5 4-4a4 4 0 0 1 6 5l-2 2m-10 3 7-7"/></g>
+<text x="53" y="25" font-size="12">https://example.com</text>
+<text x="53" y="43" font-size="10" fill="#8a97ab">链接 · 1 分钟前</text>
+<g fill="none" stroke="#8a97ab" stroke-width="1.4"><rect x="309" y="23" width="11" height="12" rx="2"/><path d="M317 23v-4h-11v12h3"/><path d="M336 23h11m-9 0v13h7V23m-5-3h3"/></g>
+</g>
+<g transform="translate(14 271)">
+<rect width="366" height="56" rx="11" fill="#fff" stroke="#e2e7ef"/>
+<rect x="10" y="10" width="38" height="36" rx="7" fill="url(#landscape)"/>
+<circle cx="36" cy="20" r="4" fill="#fff"/><path d="m10 40 12-13 11 11 7-7 8 10v5H10Z" fill="#9eafc7" fill-opacity=".6"/>
+<text x="59" y="25" font-size="12">图片 1200 × 800</text>
+<text x="59" y="43" font-size="10" fill="#8a97ab">1200 × 800 · 2 分钟前</text>
+<g fill="none" stroke="#8a97ab" stroke-width="1.4"><rect x="309" y="23" width="11" height="12" rx="2"/><path d="M317 23v-4h-11v12h3"/><path d="M336 23h11m-9 0v13h7V23m-5-3h3"/></g>
+</g>
+<text x="323" y="356" font-size="10" fill="#8a97ab">清空记录</text>
+</g>
+<text x="807" y="436" text-anchor="middle" fill="#a6b4ca" font-size="10" letter-spacing="1">界面示意 / 示例内容</text>
+</g>
+</svg>
