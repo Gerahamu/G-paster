@@ -18,18 +18,19 @@ import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { ClipboardHistoryItem, QuickPhraseDraft, QuickPhraseUpdate } from "../src/shared/contracts";
+import type { CaptureIssue, ClipboardHistoryItem, QuickPhraseDraft, QuickPhraseUpdate } from "../src/shared/contracts";
 import { HistoryStore } from "./history-store";
 import { ImageStore, type StoredImage } from "./image-store";
 import { PhraseStore } from "./phrase-store";
 import { getMacScreenshotDirectories, ScreenshotMonitor } from "./screenshot-monitor";
 import { getDevServerOrigin, isTrustedPageUrl, type TrustedOriginPolicy } from "./trusted-origin";
+import { decodeImageBuffer } from "./image-codec";
+import { readImageItems } from "./clipboard-images";
 
 const APP_NAME = "G-paster";
 const GLOBAL_SHORTCUT = process.platform === "darwin" ? "Control+C" : "Control+Shift+G";
 const CLIPBOARD_POLL_MS = 180;
 const MAX_CLIPBOARD_TEXT_LENGTH = 2_000_000;
-const MAX_CLIPBOARD_IMAGE_BYTES = 25 * 1024 * 1024;
 const MAX_SCREENSHOT_FILE_BYTES = 100 * 1024 * 1024;
 
 let mainWindow: BrowserWindow | null = null;
@@ -40,12 +41,23 @@ let phraseStore: PhraseStore;
 let screenshotMonitor: ScreenshotMonitor | null = null;
 let lastClipboardText = "";
 let nextTextPollAt = 0;
+let nextImagePollAt = 0;
 let lastClipboardImageHash = "";
 let isQuitting = false;
 let isNativeDialogOpen = false;
 let isPolling = false;
+let isPollingImage = false;
+let imageCaptureGeneration = 0;
 let historyPublishGeneration = 0;
 const imagePreviewCache = new Map<string, { hash: string; dataUrl: string }>();
+const captureIssues = new Map<CaptureIssue["source"], CaptureIssue>();
+
+function reportCaptureIssue(source: CaptureIssue["source"], message: string | null): void {
+  if ((captureIssues.get(source)?.message ?? null) === message) return;
+  if (message) captureIssues.set(source, { source, message });
+  else captureIssues.delete(source);
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("capture:issues-changed", [...captureIssues.values()]);
+}
 
 function rememberClipboardText(value: string): void {
   lastClipboardText = value.length <= MAX_CLIPBOARD_TEXT_LENGTH ? value : "";
@@ -153,24 +165,7 @@ async function publishHistory(): Promise<void> {
 }
 
 async function readClipboardImage(): Promise<{ buffer?: Buffer; width?: number; height?: number; hash: string } | null> {
-  const items = await clipboard.read();
-  const supportedTypes = new Set(["image/png", "image/jpeg", "image/tiff", "image/bmp", "public.png", "public.jpeg", "public.tiff", "public.bmp"]);
-  for (const item of items) {
-    const type = item.types.find((candidate) => supportedTypes.has(candidate.toLowerCase()));
-    if (!type) continue;
-    const blob = await item.getType(type) as Blob;
-    if (blob.size > MAX_CLIPBOARD_IMAGE_BYTES) return null;
-    const source = Buffer.from(await blob.arrayBuffer());
-    const hash = createHash("sha256").update(source).digest("hex");
-    if (hash === lastClipboardImageHash) return { hash };
-    const image = nativeImage.createFromBuffer(source);
-    if (image.isEmpty()) continue;
-    const { width, height } = image.getSize();
-    if (width <= 0 || height <= 0) continue;
-    const buffer = image.toPNG();
-    return { buffer, width, height, hash };
-  }
-  return null;
+  return readImageItems(await clipboard.read(), lastClipboardImageHash, decodeImageBuffer);
 }
 
 function isStringRecord(value: unknown): value is Record<string, unknown> {
@@ -178,6 +173,10 @@ function isStringRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function registerHistoryIpc(): void {
+  ipcMain.handle("capture:issues", (event) => {
+    assertTrustedWindow(event);
+    return [...captureIssues.values()];
+  });
   ipcMain.handle("history:list", async (event) => {
     assertTrustedWindow(event);
     return listCombinedHistory();
@@ -194,6 +193,8 @@ function registerHistoryIpc(): void {
 
   ipcMain.handle("history:clear", async (event) => {
     assertTrustedWindow(event);
+    // Invalidate any conversion that started before the user's clear operation.
+    imageCaptureGeneration++;
     const results = await Promise.allSettled([historyStore.clear(), imageStore.clear()]);
     try { lastClipboardImageHash = (await readClipboardImage())?.hash ?? ""; }
     catch { lastClipboardImageHash = ""; }
@@ -437,23 +438,39 @@ function createWindow(): void {
   mainWindow.once("ready-to-show", showWindow);
 }
 
+async function pollClipboardImage(): Promise<void> {
+  if (isPollingImage || Date.now() < nextImagePollAt) return;
+  isPollingImage = true;
+  const generation = imageCaptureGeneration;
+  try {
+    const currentImage = await readClipboardImage();
+    if (generation !== imageCaptureGeneration) return;
+    if (currentImage?.buffer && currentImage.width && currentImage.height) {
+      await imageStore.record(currentImage.buffer, currentImage.width, currentImage.height);
+      if (generation !== imageCaptureGeneration) return;
+      lastClipboardImageHash = currentImage.hash;
+      await publishHistory();
+    } else if (!currentImage) {
+      lastClipboardImageHash = "";
+    }
+    reportCaptureIssue("clipboard-image", null);
+  } catch (error) {
+    console.error("Could not save clipboard image:", error);
+    nextImagePollAt = Date.now() + 3_000;
+    reportCaptureIssue("clipboard-image", error instanceof Error && (error.message.startsWith("剪贴板") || error.message.startsWith("无法读取剪贴板"))
+      ? error.message : "剪贴板图片读取或保存失败，请检查系统剪贴板权限及应用数据目录。稍后会自动重试。");
+  } finally {
+    isPollingImage = false;
+  }
+}
+
 async function pollClipboard(): Promise<void> {
   if (isPolling) return;
   isPolling = true;
+  // Slow native conversion must not prevent text changes from being recorded.
+  void pollClipboardImage();
   try {
     let changed = false;
-    try {
-      const currentImage = await readClipboardImage();
-      if (currentImage?.buffer && currentImage.width && currentImage.height) {
-        await imageStore.record(currentImage.buffer, currentImage.width, currentImage.height);
-        lastClipboardImageHash = currentImage.hash;
-        changed = true;
-      } else if (!currentImage) {
-        lastClipboardImageHash = "";
-      }
-    } catch (error) {
-      console.error("Could not save clipboard image:", error);
-    }
     if (Date.now() >= nextTextPollAt) {
       try {
         const currentText = await clipboard.readText();
@@ -517,15 +534,17 @@ if (!app.requestSingleInstanceLock()) {
       screenshotMonitor = new ScreenshotMonitor(
         getMacScreenshotDirectories(app.getPath("desktop")),
         async (screenshotPath) => {
+          const generation = imageCaptureGeneration;
           const source = await readFile(screenshotPath);
           if (source.byteLength > MAX_SCREENSHOT_FILE_BYTES) throw new Error("Screenshot file is too large.");
-          const image = nativeImage.createFromBuffer(source);
-          if (image.isEmpty()) throw new Error("Screenshot file is not a supported image.");
-          const { width, height } = image.getSize();
-          if (width <= 0 || height <= 0) throw new Error("Screenshot image has invalid dimensions.");
-          await imageStore.record(image.toPNG(), width, height);
+          const image = await decodeImageBuffer(source);
+          if (!image) throw new Error("Screenshot file is not a supported image.");
+          if (generation !== imageCaptureGeneration) return;
+          await imageStore.record(image.buffer, image.width, image.height);
+          if (generation !== imageCaptureGeneration) return;
           await publishHistory();
-        }
+        },
+        (issue) => reportCaptureIssue("screenshots", issue)
       );
       screenshotMonitor.start();
     }

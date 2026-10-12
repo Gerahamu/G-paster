@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type FormEvent } from "react";
-import type { ClipboardEntry, ClipboardHistoryItem, ClipboardImageEntry, QuickPhrase } from "./shared/contracts";
+import type { CaptureIssue, ClipboardEntry, ClipboardHistoryItem, ClipboardImageEntry, QuickPhrase } from "./shared/contracts";
 import gpasterIcon from "../assets/G-paster-brand.png";
 
 type ModuleName = "history" | "phrases" | "screenshots";
@@ -48,6 +48,7 @@ function App() {
   const [category, setCategory] = useState("全部");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [captureIssues, setCaptureIssues] = useState<CaptureIssue[]>([]);
   const [notice, setNotice] = useState("");
   const [editor, setEditor] = useState<PhraseEditorState | null>(null);
   const [editorError, setEditorError] = useState("");
@@ -70,6 +71,14 @@ function App() {
 
   useEffect(() => {
     let receivedChange = false;
+    let receivedIssues = false;
+    const unsubscribeIssues = window.gpaster.onCaptureIssuesChanged((issues) => {
+      receivedIssues = true;
+      setCaptureIssues(issues);
+    });
+    void window.gpaster.listCaptureIssues().then((issues) => {
+      if (!receivedIssues) setCaptureIssues(issues);
+    }).catch(() => undefined);
     const unsubscribeHistory = window.gpaster.onHistoryChanged((nextEntries) => {
       receivedChange = true;
       setEntries(nextEntries);
@@ -91,7 +100,7 @@ function App() {
         setLoading(false);
         setError("读取本地内容失败。请稍后重试。");
       });
-    return () => { unsubscribeHistory(); unsubscribeShown(); };
+    return () => { unsubscribeHistory(); unsubscribeShown(); unsubscribeIssues(); };
   }, []);
 
   useEffect(() => {
@@ -264,6 +273,7 @@ function App() {
         </nav>
 
         {error && <div className="error-message" role="alert">{error}<button type="button" aria-label="关闭提示" onClick={() => setError("")}><Icon name="close" size={13} /></button></div>}
+        {captureIssues.map((issue) => <div className="error-message" role="status" key={issue.source}>{issue.message}</div>)}
         {notice && <div className="notice-message" role="status">{notice}<button type="button" aria-label="关闭提示" onClick={() => setNotice("")}><Icon name="close" size={13} /></button></div>}
 
         {activeModule === "history" && <section className="history-panel" aria-label="剪贴板历史">

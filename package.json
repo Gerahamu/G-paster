@@ -1,6 +1,6 @@
 {
   "name": "gpaster",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "productName": "G-paster",
   "private": true,
   "description": "A focused desktop clipboard history for macOS and Windows.",
@@ -12,9 +12,11 @@
     "build:main": "tsc -p tsconfig.electron.json",
     "build:renderer": "vite build",
     "typecheck": "tsc -p tsconfig.electron.json --noEmit && tsc -p tsconfig.renderer.json",
-    "test": "tsc --module Node16 --moduleResolution Node16 --target ES2022 --rootDir . --outDir work/test-build --esModuleInterop --skipLibCheck --types node electron/history-store.test.ts electron/local-stores.test.ts electron/trusted-origin.test.ts && node --test work/test-build/electron/history-store.test.js work/test-build/electron/local-stores.test.js work/test-build/electron/trusted-origin.test.js",
+    "test": "tsc --module Node16 --moduleResolution Node16 --target ES2022 --rootDir . --outDir work/test-build --esModuleInterop --skipLibCheck --types node electron/history-store.test.ts electron/local-stores.test.ts electron/trusted-origin.test.ts electron/clipboard-images.test.ts electron/screenshot-monitor.test.ts && node --test work/test-build/electron/history-store.test.js work/test-build/electron/local-stores.test.js work/test-build/electron/trusted-origin.test.js work/test-build/electron/clipboard-images.test.js work/test-build/electron/screenshot-monitor.test.js",
     "desktop": "npm run build && electron .",
-    "package:mac": "npm run build && npx --yes @electron/packager . G-paster --platform=darwin --arch=arm64 --out=work/packaged --overwrite --app-bundle-id=com.gpaster.desktop --icon=assets/G-paster.icns --extend-info=scripts/macos-agent-info.plist --ignore='^/(work|outputs|src|electron|scripts)(/|$)'"
+    "package:mac": "npm run build && npx --yes @electron/packager . G-paster --platform=darwin --arch=arm64 --out=work/packaged --overwrite --app-bundle-id=com.gpaster.desktop --icon=assets/G-paster.icns --extend-info=scripts/macos-agent-info.plist --ignore='^/(work|outputs|src|electron|scripts)(/|$)'",
+    "test:images:electron": "npm run build:main && electron scripts/test-image-runtime.cjs",
+    "test:images:app": "npm run build && electron scripts/test-app-images.cjs"
   },
   "dependencies": {
     "react": "^19.3.0",

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
+  CaptureIssue,
   ClipboardHistoryItem,
   GpasterBridge,
   QuickPhraseDraft,
@@ -7,6 +8,12 @@ import type {
 } from "../src/shared/contracts";
 
 const bridge: GpasterBridge = {
+  listCaptureIssues: async () => (await ipcRenderer.invoke("capture:issues")) as CaptureIssue[],
+  onCaptureIssuesChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, issues: CaptureIssue[]) => callback(issues);
+    ipcRenderer.on("capture:issues-changed", listener);
+    return () => ipcRenderer.removeListener("capture:issues-changed", listener);
+  },
   listHistory: async () => (await ipcRenderer.invoke("history:list")) as ClipboardHistoryItem[],
   deleteHistory: async (id) => (await ipcRenderer.invoke("history:delete", id)) as boolean,
   clearHistory: async () => {

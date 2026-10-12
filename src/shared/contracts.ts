@@ -22,6 +22,11 @@ export interface ClipboardImageEntry {
 
 export type ClipboardHistoryItem = ClipboardEntry | ClipboardImageEntry;
 
+export interface CaptureIssue {
+  source: "clipboard-image" | "screenshots";
+  message: string;
+}
+
 export interface QuickPhrase {
   id: string;
   text: string;
@@ -40,6 +45,8 @@ export interface QuickPhraseUpdate extends QuickPhraseDraft {
 }
 
 export interface GpasterBridge {
+  listCaptureIssues(): Promise<CaptureIssue[]>;
+  onCaptureIssuesChanged(callback: (issues: CaptureIssue[]) => void): () => void;
   listHistory(): Promise<ClipboardHistoryItem[]>;
   deleteHistory(id: string): Promise<boolean>;
   clearHistory(): Promise<void>;

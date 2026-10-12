@@ -8,7 +8,7 @@
 
 一个常驻 macOS 菜单栏的轻量剪贴板工具。<br />剪贴板、常用语、截图中转站，在一个紧凑面板里接着用。
 
-![版本 0.1.0](https://img.shields.io/badge/version-0.1.0-355de7?style=flat-square&labelColor=202a38) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-8691a1?style=flat-square&labelColor=202a38) ![本地存储](https://img.shields.io/badge/data-local%20only-579a86?style=flat-square&labelColor=202a38)
+![版本 0.1.1](https://img.shields.io/badge/version-0.1.1-355de7?style=flat-square&labelColor=202a38) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-8691a1?style=flat-square&labelColor=202a38) ![本地存储](https://img.shields.io/badge/data-local%20only-579a86?style=flat-square&labelColor=202a38)
 
 [认识 G-paster](#三个模块一个面板) · [开始使用](#开始使用) · [数据与隐私](#数据留在你的电脑上) · [参与开发](#开发与构建)
 
@@ -53,7 +53,9 @@
 
 macOS 截图监控读取桌面及系统配置的截图保存目录，在应用运行时收集新生成、符合截图文件名规则的图片，等待文件写入稳定后再导入。它不是对所有文件夹的图片扫描，也不会自动导入启动前的旧截图。原始截图文件保持原样；应用内保存的是独立图片副本。
 
-复制到剪贴板的普通图片也会进入截图中转站，当前版本不对图像内容做语义识别。访问截图目录需要系统允许相应文件访问。
+复制到剪贴板的普通图片也会进入截图中转站，Finder 中复制的本地图片文件也支持收集。macOS 的 TIFF、HEIC 等表示会先转为 PNG 保存；当前版本不对图像内容做语义识别。
+
+若截图没有出现，请检查「系统设置 → 隐私与安全性 → 文件与文件夹」中 G-paster 对截图目录的访问权限，并在应用运行时新截一张图。0.1.1 起，目录访问、图片读取和导入失败会在面板显示提示，失败截图会重试；一个目录无法访问不会阻止其他可访问目录。
 
 </details>
 
@@ -136,7 +138,9 @@ G-paster 无需账户或云端服务，不向外部服务上传剪贴板内容�
 | `npm ci` | 按锁定文件安装依赖 |
 | `npm run dev` | 启动 Vite 和 Electron 开发环境 |
 | `npm run typecheck` | 检查主进程与渲染进程类型 |
-| `npm test` | 执行存储和受信页面策略回归测试 |
+| `npm test` | 执行存储、受信页面、图片表示和截图监控回归测试 |
+| `npm run test:images:electron` | 在真实 Electron 中验证图片解码、存储、缩略图和截图导入（隔离数据，不修改系统剪贴板） |
+| `npm run test:images:app` | 用隔离数据和可控剪贴板输入，验证实际主进程、preload、UI、错误恢复与清空竞态 |
 | `npm run build` | 编译 Electron 主进程并构建前端 |
 | `npm run package:mac` | 生成 macOS arm64 应用 |
 
@@ -166,6 +170,6 @@ scripts/                开发启动及 macOS 后台应用配置
 
 [反馈问题](https://github.com/Gerahamu/G-paster/issues) · [浏览源码](https://github.com/Gerahamu/G-paster)
 
-<sub>当前版本 0.1.0 · macOS arm64 优先 · 仓库尚未添加开源许可证</sub>
+<sub>当前版本 0.1.1 · macOS arm64 优先 · 仓库尚未添加开源许可证</sub>
 
 </div>
