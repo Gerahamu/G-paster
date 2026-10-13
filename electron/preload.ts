@@ -18,6 +18,12 @@ function initialSystemSettings(): GpasterBridge["initialSystemSettings"] {
 
 const bridge: GpasterBridge = {
   getPreferences: () => ipcRenderer.invoke("preferences:get"),
+  updatePreferences: (patch) => ipcRenderer.invoke("preferences:update", patch),
+  onPreferencesChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, preferences: Parameters<typeof callback>[0]) => callback(preferences);
+    ipcRenderer.on("preferences:changed", listener);
+    return () => ipcRenderer.removeListener("preferences:changed", listener);
+  },
   setShortcut: (shortcut) => ipcRenderer.invoke("preferences:shortcut", shortcut),
   setOpenAtLogin: (enabled) => ipcRenderer.invoke("preferences:login", enabled),
   setShortcutRecording: (recording) => ipcRenderer.invoke("preferences:recording", recording),

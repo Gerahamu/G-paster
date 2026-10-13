@@ -21,8 +21,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { AppPreferences, CaptureIssue, ClipboardHistoryItem, QuickPhraseDraft, QuickPhraseUpdate, SystemSettings } from "../src/shared/contracts";
-import { HistoryStore, MAX_HISTORY_ENTRIES } from "./history-store";
-import { ImageStore, MAX_CLIPBOARD_IMAGES, type StoredImage } from "./image-store";
+import { HistoryStore } from "./history-store";
+import { ImageStore, type StoredImage } from "./image-store";
 import { Preferences } from "./preferences";
 import { PhraseStore } from "./phrase-store";
 import { getMacScreenshotDirectories, ScreenshotMonitor } from "./screenshot-monitor";
@@ -82,11 +82,11 @@ function readPreferences(): AppPreferences {
   }
   return { shortcut: preferences.shortcut, defaultShortcut: preferences.defaultShortcut, shortcutRegistered: preferences.registered,
     loginSupported, openAtLogin, loginStatus,
-    version: app.getVersion(), textLimit: MAX_HISTORY_ENTRIES, imageLimit: MAX_CLIPBOARD_IMAGES };
+    version: app.getVersion(), ...preferences.options };
 }
 
 function refreshSystemSettings(): SystemSettings {
-  const next = readSystemSettings();
+  const next = readSystemSettings(preferences?.options.language);
   const changed = next.language !== currentSystemSettings?.language || next.locale !== currentSystemSettings?.locale;
   currentSystemSettings = next;
   if (changed) {
@@ -97,7 +97,7 @@ function refreshSystemSettings(): SystemSettings {
 }
 
 function nativeText(key: TranslationKey): string {
-  return translate((currentSystemSettings ?? readSystemSettings()).language, key);
+  return translate((currentSystemSettings ?? readSystemSettings(preferences?.options.language)).language, key);
 }
 
 function windowBackground(): string {
@@ -164,12 +164,29 @@ function openSettings(): void {
 }
 
 function registerPreferencesIpc(): void {
+  const publishPreferences = () => {
+    const next = readPreferences();
+    mainWindow?.webContents.send("preferences:changed", next);
+    return next;
+  };
   ipcMain.handle("preferences:get", event => { assertTrustedWindow(event); return readPreferences(); });
+  ipcMain.handle("preferences:update", async (event, patch: unknown) => {
+    assertTrustedWindow(event);
+    const error = await preferences.update(patch);
+    if (!error) {
+      historyStore.configureLimit(preferences.options.textLimit);
+      imageStore.configureLimit(preferences.options.imageLimit);
+      nativeTheme.themeSource = preferences.options.appearance;
+      refreshSystemSettings();
+      mainWindow?.setBackgroundColor(windowBackground());
+    }
+    return { settings: publishPreferences(), error };
+  });
   ipcMain.handle("preferences:shortcut", async (event, shortcut: unknown) => {
     assertTrustedWindow(event);
     setShortcutRecording(false);
     const error = await preferences.setShortcut(shortcut);
-    return { settings: readPreferences(), error };
+    return { settings: publishPreferences(), error };
   });
   ipcMain.handle("preferences:recording", (event, recording: unknown) => {
     assertTrustedWindow(event);
@@ -621,8 +638,10 @@ if (!app.requestSingleInstanceLock()) {
     const userData = app.getPath("userData");
     preferences = new Preferences(join(userData, "preferences.json"), GLOBAL_SHORTCUT, process.platform, globalShortcut, toggleWindow);
     await preferences.load();
-    historyStore = new HistoryStore(join(userData, "history.json"));
-    imageStore = new ImageStore(join(userData, "image-history.json"));
+    nativeTheme.themeSource = preferences.options.appearance;
+    refreshSystemSettings();
+    historyStore = new HistoryStore(join(userData, "history.json"), preferences.options.textLimit);
+    imageStore = new ImageStore(join(userData, "image-history.json"), preferences.options.imageLimit);
     phraseStore = new PhraseStore(join(userData, "phrases.json"));
     await Promise.all([historyStore.list(), imageStore.list(), phraseStore.list()]);
     try { rememberClipboardText(await clipboard.readText()); }

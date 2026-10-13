@@ -60,8 +60,9 @@ app.whenReady().then(async () => {
   };
   assert.equal(nativeTheme.themeSource, 'system');
   assert.equal(await evaluate('window.gpaster.initialSystemSettings.language'), 'en');
-  assert.equal(await evaluate('Object.keys(window.gpaster).some(k => /^set(Language|Theme|SystemSettings|Appearance)$/.test(k))'), false);
-  console.log('PASS system-only startup, English initial snapshot, no application preference setters');
+  assert.equal((await evaluate('window.gpaster.getPreferences()')).language, 'system');
+  assert.equal((await evaluate('window.gpaster.getPreferences()')).appearance, 'system');
+  console.log('PASS default system-follow startup and English initial snapshot');
   const setLanguage = async lang => {
     preferred = lang === 'zh' ? ['zh-Hans-CN'] : ['en-US']; locale = lang === 'zh' ? 'zh-CN' : 'en-US';
     await evaluate('window.gpaster.getSystemSettings()');

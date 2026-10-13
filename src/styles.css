@@ -211,6 +211,11 @@ input:focus-visible {
 .settings-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; }
 .settings-copy span { color: var(--text-secondary); font-size: 10px; line-height: 1.4; }
 .settings-value { flex-shrink: 0; color: var(--text-secondary); font-size: 11px; }
+.settings-select, .settings-number { max-width: 150px; min-height: 27px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--control-bg); color: var(--ink); font-size: 11px; }
+.settings-number { width: 70px; text-align: right; }
+.settings-select:disabled, .settings-number:disabled { opacity: .55; }
+.settings-limits-form { margin: 0; }
+.settings-limits-form + .settings-row { border-top: 1px solid var(--line); }
 .shortcut-row { align-items: flex-start; flex-wrap: wrap; }
 .shortcut-control { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .settings-action { flex-shrink: 0; min-height: 25px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--control-bg); color: var(--text-secondary); cursor: pointer; font-size: 10px; line-height: 1.3; }

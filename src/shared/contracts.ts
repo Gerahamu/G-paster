@@ -1,11 +1,12 @@
 import type { UiLanguage } from "./i18n";
+import type { EditablePreferences } from "./preferences";
 
 export interface SystemSettings {
   language: UiLanguage;
   locale: string;
 }
 
-export interface AppPreferences {
+export interface AppPreferences extends EditablePreferences {
   shortcut: string;
   defaultShortcut: string;
   shortcutRegistered: boolean;
@@ -17,7 +18,7 @@ export interface AppPreferences {
   imageLimit: number;
 }
 
-export type PreferenceFailure = "shortcut-invalid" | "shortcut-conflict" | "settings-save-failed" | "login-unavailable" | "login-failed";
+export type PreferenceFailure = "shortcut-invalid" | "shortcut-conflict" | "settings-save-failed" | "login-unavailable" | "login-failed" | "preferences-invalid";
 export interface PreferenceResult { settings: AppPreferences; error: PreferenceFailure | null }
 
 export type ClipboardEntryKind = "text" | "link";
@@ -68,6 +69,8 @@ export interface QuickPhraseUpdate extends QuickPhraseDraft {
 
 export interface GpasterBridge {
   getPreferences(): Promise<AppPreferences>;
+  updatePreferences(patch: Partial<EditablePreferences>): Promise<PreferenceResult>;
+  onPreferencesChanged(callback: (preferences: AppPreferences) => void): () => void;
   setShortcut(shortcut: string): Promise<PreferenceResult>;
   setOpenAtLogin(enabled: boolean): Promise<PreferenceResult>;
   setShortcutRecording(recording: boolean): Promise<void>;

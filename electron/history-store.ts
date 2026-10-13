@@ -32,9 +32,11 @@ export class HistoryStore {
   private mutationQueue: Promise<void> = Promise.resolve();
   private readonly filePath: string;
 
-  constructor(filePath: string) {
+  constructor(filePath: string, private limit = MAX_HISTORY_ENTRIES) {
     this.filePath = filePath;
   }
+
+  configureLimit(limit: number): void { this.limit = limit; }
 
   async list(): Promise<ClipboardEntry[]> {
     await this.mutationQueue;
@@ -59,7 +61,7 @@ export class HistoryStore {
         ? { ...existing, copiedAt }
         : { id: randomUUID(), content, kind: classifyContent(content), createdAt: copiedAt, copiedAt };
 
-      const next = [entry, ...this.entries.filter((candidate) => candidate.id !== entry.id)].slice(0, MAX_HISTORY_ENTRIES);
+      const next = [entry, ...this.entries.filter((candidate) => candidate.id !== entry.id)].slice(0, this.limit);
       await this.persist(next);
       this.entries = next;
       return { ...entry };
@@ -91,7 +93,7 @@ export class HistoryStore {
       this.loadPromise = (async () => {
         const entries = (await readJsonArray(this.filePath)).filter(isEntry);
         entries.sort((left, right) => right.copiedAt - left.copiedAt);
-        this.entries = entries.slice(0, MAX_HISTORY_ENTRIES);
+        this.entries = entries.slice(0, this.limit);
         this.loaded = true;
       })().finally(() => { this.loadPromise = null; });
     }

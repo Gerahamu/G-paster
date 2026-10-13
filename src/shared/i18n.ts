@@ -1,6 +1,16 @@
 export type UiLanguage = "zh" | "en";
 
 const english = {
+  "偏好设置": "Preferences", "浅色": "Light", "深色": "Dark",
+  "放弃未保存的数量修改？": "Discard unsaved limit changes?",
+  "设置已保存。": "Settings saved.", "数量已保存，下次收集或启动时按新上限清理。": "Limits saved. Applied on the next capture or launch.",
+  "请输入有效的保留数量：文本 1–1000 条，图片 1–100 张。": "Enter valid limits: 1–1000 text entries and 1–100 images.",
+  "保存保留数量": "Save limits", "保留数量": "History limits", "恢复默认数量": "Reset limits",
+  "降低保留上限后，下次收集或启动时会移除最旧记录（包括收藏图片），无法撤销。是否保存？": "Lowering limits removes oldest entries (including starred images) on the next capture or launch. This cannot be undone. Save?",
+  "输入数量后点击保存；常用语不受此上限影响。": "Save your limits below. Saved phrases are unaffected.",
+  "自定义语言与外观，或自动跟随系统。": "Choose language and appearance, or follow your system.",
+  "当前 {count} 张，上限 {limit}": "{count} images, limit {limit}",
+  "复制或保存截图后，会自动收集最近 {limit} 张。": "Copy an image or take a screenshot. The latest {limit} stay here.",
   "设置": "Settings", "返回": "Back", "使用习惯": "General", "打开 / 收起面板": "Toggle panel",
   "再按一次快捷键即可收起。": "Press the shortcut again to hide.", "恢复默认": "Reset", "更改快捷键": "Change shortcut",
   "按下新组合键": "Press a new shortcut", "按 Esc 取消": "Esc to cancel", "更改": "Change",

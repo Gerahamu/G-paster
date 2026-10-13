@@ -5,6 +5,9 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { Preferences } from "./preferences";
 import { displayShortcut, normalizeShortcut, shortcutFromKey } from "../src/shared/shortcuts";
+import { DEFAULT_PREFERENCES, preferencePatch } from "../src/shared/preferences";
+import { ImageStore } from "./image-store";
+import { HistoryStore } from "./history-store";
 
 function registry() {
   const bindings = new Map<string, () => void>();
@@ -43,7 +46,51 @@ test("preferences preserve old shortcut on conflict, serialize updates, persist 
     const reloaded = new Preferences(path, "Control+C", "darwin", registry(), () => {});
     await reloaded.load(); assert.equal(reloaded.shortcut, "Alt+G");
     await preferences.setShortcut("Control+C");
-    assert.deepEqual(JSON.parse(await readFile(path, "utf8")), [{ shortcut: "Control+C" }]);
+    assert.deepEqual(JSON.parse(await readFile(path, "utf8")), [{ shortcut: "Control+C", ...DEFAULT_PREFERENCES }]);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("editable preferences validate types and persist without overwriting concurrent shortcut updates", async () => {
+  for (const patch of [{ imageLimit: 0 }, { textLimit: 1001 }, { imageLimit: 1.5 }, { textLimit: "3" }, { language: ["en"] }, { appearance: "blue" }, { path: "/tmp" }, []]) {
+    assert.equal(preferencePatch(patch), null);
+  }
+  const directory = await mkdtemp(join(tmpdir(), "gpaster-preferences-"));
+  try {
+    const path = join(directory, "preferences.json"), prefs = new Preferences(path, "Control+C", "darwin", registry(), () => {});
+    prefs.register();
+    assert.deepEqual(await Promise.all([prefs.update({ language: "en", appearance: "dark", textLimit: 6, imageLimit: 2 }), prefs.setShortcut("Alt+G")]), [null, null]);
+    const restored = new Preferences(path, "Control+C", "darwin", registry(), () => {});
+    await restored.load();
+    assert.equal(restored.shortcut, "Alt+G");
+    assert.deepEqual(restored.options, { language: "en", appearance: "dark", textLimit: 6, imageLimit: 2 });
+    assert.equal(await restored.update({ imageLimit: 0 }), "preferences-invalid");
+    assert.equal(restored.options.imageLimit, 2);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("configured retention limits affect capture, keep recent records and remove evicted image files", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "gpaster-policy-"));
+  try {
+    const historyPath = join(directory, "history.json"), imagePath = join(directory, "image-history.json");
+    const text = new HistoryStore(historyPath, 4), images = new ImageStore(imagePath, 4);
+    let favorite;
+    for (let i = 1; i <= 4; i++) {
+      await text.recordClipboardText(String(i), i);
+      const image = await images.record(Buffer.from(String(i)), 1, 1, i);
+      if (i === 1) { favorite = image; await images.toggleFavorite(image.id); }
+    }
+    text.configureLimit(2); images.configureLimit(2);
+    assert.equal((await text.list()).length, 4); assert.equal((await images.list()).length, 4);
+    await text.recordClipboardText("next", 5); await images.record(Buffer.from("next"), 1, 1, 5);
+    assert.deepEqual((await text.list()).map(entry => entry.content), ["next", "4"]);
+    assert.equal((await images.list()).length, 2);
+    assert.equal(await images.get(favorite!.id), undefined);
+    await assert.rejects(readFile(join(directory, "images", favorite!.fileName)), { code: "ENOENT" });
+    assert.equal((await new ImageStore(imagePath, 2).list()).length, 2);
+    assert.equal((await new HistoryStore(historyPath, 2).list()).length, 2);
+    images.configureLimit(5);
+    for (let i = 6; i <= 8; i++) await images.record(Buffer.from(String(i)), 1, 1, i);
+    assert.equal((await images.list()).length, 5);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 

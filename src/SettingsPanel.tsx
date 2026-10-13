@@ -2,28 +2,39 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { AppPreferences, PreferenceFailure, PreferenceResult, SystemSettings } from "./shared/contracts";
 import { translate, type TranslationKey } from "./shared/i18n";
 import { displayShortcut, shortcutFromKey } from "./shared/shortcuts";
+import { DEFAULT_PREFERENCES, IMAGE_LIMIT_RANGE, TEXT_LIMIT_RANGE, preferencePatch, type AppearanceChoice, type LanguageChoice } from "./shared/preferences";
 
 const failureKeys: Record<PreferenceFailure, TranslationKey> = {
   "shortcut-invalid": "请使用 Ctrl、Option / Alt 或 Command 加字母、数字、空格或功能键。",
   "shortcut-conflict": "此快捷键已被占用，原快捷键保留。",
   "settings-save-failed": "设置保存失败，请重试。",
   "login-unavailable": "安装版可设置开机启动。",
-  "login-failed": "未能更改开机启动，请检查系统登录项。"
+  "login-failed": "未能更改开机启动，请检查系统登录项。",
+  "preferences-invalid": "请输入有效的保留数量：文本 1–1000 条，图片 1–100 张。"
 };
 
-export default function SettingsPanel({ system, onBack }: { system: SystemSettings; onBack: () => void }) {
+export default function SettingsPanel({ system, onBack, onDirtyChange }: { system: SystemSettings; onBack: () => void; onDirtyChange: (dirty: boolean) => void }) {
   const t = (key: TranslationKey, values?: Record<string, string | number>) => translate(system.language, key, values);
   const [preferences, setPreferences] = useState<AppPreferences | null>(null);
   const [error, setError] = useState<TranslationKey | "">("");
   const [notice, setNotice] = useState<TranslationKey | "">("");
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [textLimit, setTextLimit] = useState("");
+  const [imageLimit, setImageLimit] = useState("");
+  const dirtyLimits = useRef(false);
   const recordButton = useRef<HTMLButtonElement>(null);
   const alive = useRef(true);
+  useEffect(() => {
+    onDirtyChange(!!preferences && (textLimit !== String(preferences.textLimit) || imageLimit !== String(preferences.imageLimit)));
+  }, [textLimit, imageLimit, preferences?.textLimit, preferences?.imageLimit]);
   useEffect(() => { if (recording && !busy) recordButton.current?.focus(); }, [recording, busy]);
 
   async function refresh() {
-    try { const next = await window.gpaster.getPreferences(); if (alive.current) { setPreferences(next); setError(""); } }
+    try { const next = await window.gpaster.getPreferences(); if (alive.current) {
+      setPreferences(next); setError("");
+      if (!dirtyLimits.current) { setTextLimit(String(next.textLimit)); setImageLimit(String(next.imageLimit)); }
+    } }
     catch { if (alive.current) setError("无法读取设置，请重试。"); }
   }
   useEffect(() => {
@@ -33,6 +44,7 @@ export default function SettingsPanel({ system, onBack }: { system: SystemSettin
     window.addEventListener("focus", onFocus);
     return () => {
       alive.current = false;
+      onDirtyChange(false);
       window.removeEventListener("focus", onFocus);
       void window.gpaster.setShortcutRecording(false).catch(() => undefined);
     };
@@ -45,7 +57,28 @@ export default function SettingsPanel({ system, onBack }: { system: SystemSettin
       if (!alive.current) return;
       setPreferences(result.settings);
       if (result.error) setError(failureKeys[result.error]);
-      else if (shortcut) setNotice("快捷键已更新。");
+      else setNotice(shortcut ? "快捷键已更新。" : "设置已保存。");
+    } catch { if (alive.current) setError("设置保存失败，请重试。"); }
+    finally { if (alive.current) setBusy(false); }
+  }
+
+  async function saveLimits(text = textLimit, images = imageLimit) {
+    if (!preferences || busy) return;
+    const patch = preferencePatch({ textLimit: Number(text), imageLimit: Number(images) });
+    if (!patch || !text.trim() || !images.trim()) { setError(failureKeys["preferences-invalid"]); return; }
+    if ((Number(text) < preferences.textLimit || Number(images) < preferences.imageLimit) &&
+      !window.confirm(t("降低保留上限后，下次收集或启动时会移除最旧记录（包括收藏图片），无法撤销。是否保存？"))) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const result = await window.gpaster.updatePreferences(patch);
+      if (!alive.current) return;
+      setPreferences(result.settings);
+      if (result.error) setError(failureKeys[result.error]);
+      else {
+        dirtyLimits.current = false;
+        setTextLimit(String(result.settings.textLimit)); setImageLimit(String(result.settings.imageLimit));
+        setNotice("数量已保存，下次收集或启动时按新上限清理。");
+      }
     } catch { if (alive.current) setError("设置保存失败，请重试。"); }
     finally { if (alive.current) setBusy(false); }
   }
@@ -88,15 +121,18 @@ export default function SettingsPanel({ system, onBack }: { system: SystemSettin
             <div className="settings-row"><div className="settings-copy"><strong>{t("开机启动")}</strong><span>{t(!preferences.loginSupported ? "安装版可设置开机启动。" : preferences.loginStatus === "unavailable" ? "无法读取开机启动状态，请检查系统登录项。" : preferences.loginStatus === "requires-approval" ? "需在系统登录项中允许启动。" : "登录后在后台运行。")}</span></div><button className="settings-switch" type="button" role="switch" aria-checked={preferences.openAtLogin || preferences.loginStatus === "requires-approval"} aria-label={t("开机启动")} disabled={busy || recording || !preferences.loginSupported || preferences.loginStatus === "unavailable"} onClick={() => void apply(() => window.gpaster.setOpenAtLogin(!(preferences.openAtLogin || preferences.loginStatus === "requires-approval")))}><span /></button></div>
           </div>
         </section>
-        <section className="settings-section" aria-labelledby="system-heading"><h2 id="system-heading">{t("系统跟随")}</h2><div className="settings-group">
-          <div className="settings-row"><strong>{t("界面语言")}</strong><span className="settings-value">{t(system.language === "zh" ? "中文" : "英文")}</span></div>
-          <div className="settings-row"><strong>{t("外观")}</strong><span className="settings-value">{t("跟随系统")}</span></div>
-        </div><p className="settings-caption">{t("语言与浅深色外观仅跟随系统。")}</p></section>
+        <section className="settings-section" aria-labelledby="system-heading"><h2 id="system-heading">{t("偏好设置")}</h2><div className="settings-group">
+          <div className="settings-row"><label htmlFor="language-choice">{t("界面语言")}</label><select id="language-choice" className="settings-select" value={preferences.language} disabled={busy || recording} onChange={event => void apply(() => window.gpaster.updatePreferences({ language: event.target.value as LanguageChoice }))}><option value="system">{t("跟随系统")}</option><option value="zh">{t("中文")}</option><option value="en">English</option></select></div>
+          <div className="settings-row"><label htmlFor="appearance-choice">{t("外观")}</label><select id="appearance-choice" className="settings-select" value={preferences.appearance} disabled={busy || recording} onChange={event => void apply(() => window.gpaster.updatePreferences({ appearance: event.target.value as AppearanceChoice }))}><option value="system">{t("跟随系统")}</option><option value="light">{t("浅色")}</option><option value="dark">{t("深色")}</option></select></div>
+        </div><p className="settings-caption">{t("自定义语言与外观，或自动跟随系统。")}</p></section>
         <section className="settings-section" aria-labelledby="storage-heading"><h2 id="storage-heading">{t("本地存储")}</h2><div className="settings-group">
-          <div className="settings-row"><strong>{t("文本与链接")}</strong><span className="settings-value">{t("最近 {count} 条", { count: preferences.textLimit })}</span></div>
-          <div className="settings-row"><strong>{t("图片与截图")}</strong><span className="settings-value">{t("最近 {count} 张", { count: preferences.imageLimit })}</span></div>
+          <form className="settings-limits-form" onSubmit={event => { event.preventDefault(); void saveLimits(); }}>
+            <div className="settings-row"><label htmlFor="text-limit">{t("文本与链接")}</label><input id="text-limit" className="settings-number" type="number" min={TEXT_LIMIT_RANGE.min} max={TEXT_LIMIT_RANGE.max} step="1" value={textLimit} disabled={busy || recording} onChange={event => { dirtyLimits.current = true; setTextLimit(event.target.value); }} /></div>
+            <div className="settings-row"><label htmlFor="image-limit">{t("图片与截图")}</label><input id="image-limit" className="settings-number" type="number" min={IMAGE_LIMIT_RANGE.min} max={IMAGE_LIMIT_RANGE.max} step="1" value={imageLimit} disabled={busy || recording} onChange={event => { dirtyLimits.current = true; setImageLimit(event.target.value); }} /></div>
+            <div className="settings-row limits-actions"><button className="settings-link" type="button" disabled={busy || recording} onClick={() => void saveLimits(String(DEFAULT_PREFERENCES.textLimit), String(DEFAULT_PREFERENCES.imageLimit))}>{t("恢复默认数量")}</button><button className="settings-action" type="submit" disabled={busy || recording || (textLimit === String(preferences.textLimit) && imageLimit === String(preferences.imageLimit))}>{t("保存保留数量")}</button></div>
+          </form>
           <div className="settings-row"><div className="settings-copy"><span>{t("仅存储在本机，原截图保持不变。")}</span></div><button className="settings-action" type="button" onClick={() => { void window.gpaster.openDataDirectory().then(ok => { if (!ok) setError("无法打开数据文件夹。"); }).catch(() => setError("无法打开数据文件夹。")); }}>{t("打开数据文件夹")}</button></div>
-        </div><p className="settings-caption">{t("超出上限自动移除最旧记录；图片收藏不影响此规则。")}</p></section>
+        </div><p className="settings-caption">{t("输入数量后点击保存；常用语不受此上限影响。")}</p></section>
       </>}
     </div>
     <footer className="settings-footer"><span>G-paster{preferences ? ` ${preferences.version}` : ""}</span><span>{t("本地运行，无需登录")}</span></footer>

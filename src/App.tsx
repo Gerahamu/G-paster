@@ -3,6 +3,7 @@ import type { CaptureIssue, ClipboardEntry, ClipboardHistoryItem, ClipboardImage
 import { errorKey, translate, translateMessage, type TranslationKey, type TranslationValues } from "./shared/i18n";
 import gpasterIcon from "../assets/G-paster-brand.png";
 import SettingsPanel from "./SettingsPanel";
+import { DEFAULT_PREFERENCES } from "./shared/preferences";
 
 type ModuleName = "history" | "phrases" | "screenshots";
 type IconName = "history" | "phrase" | "image" | "search" | "link" | "text" | "copy" | "trash" | "close" | "plus" | "edit" | "star" | "save" | "bookmark";
@@ -51,6 +52,8 @@ function App() {
   const [phrases, setPhrases] = useState<QuickPhrase[]>([]);
   const [activeModule, setActiveModule] = useState<ModuleName>("history");
   const [showSettings, setShowSettings] = useState(false);
+  const settingsDirty = useRef(false);
+  const [imageLimit, setImageLimit] = useState(DEFAULT_PREFERENCES.imageLimit);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [loading, setLoading] = useState(true);
@@ -65,6 +68,13 @@ function App() {
   const isMac = window.gpaster.platform === "darwin";
   const images = useMemo(() => entries.filter(isImageEntry), [entries]);
   const categories = useMemo(() => Array.from(new Set(phrases.map((phrase) => phrase.category))).sort((a, b) => a.localeCompare(b, settings.locale)), [phrases, settings.locale]);
+
+  useEffect(() => {
+    let changed = false;
+    const unsubscribe = window.gpaster.onPreferencesChanged(next => { changed = true; setImageLimit(next.imageLimit); });
+    void window.gpaster.getPreferences().then(next => { if (!changed) setImageLimit(next.imageLimit); }).catch(() => undefined);
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     let changed = false;
@@ -106,7 +116,7 @@ function App() {
       setLoading(false);
     });
     const unsubscribeShown = window.gpaster.onWindowShown(() => {
-      setShowSettings(false);
+      if (!settingsDirty.current) setShowSettings(false);
       setQuery("");
       setActiveModule("history");
       void Promise.all([refreshHistory(), refreshPhrases()]).catch(() => setError("读取本地内容失败。"));
@@ -138,7 +148,7 @@ function App() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (showSettings) {
-        if (event.key === "Escape") setShowSettings(false);
+        if (event.key === "Escape") closeSettings();
         return;
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
@@ -277,6 +287,11 @@ function App() {
   }
 
   function selectModule(module: ModuleName): void { setActiveModule(module); setQuery(""); setError(""); }
+  function closeSettings(): void {
+    if (settingsDirty.current && !window.confirm(t("放弃未保存的数量修改？"))) return;
+    setShowSettings(false);
+    window.setTimeout(() => searchRef.current?.focus(), 0);
+  }
   const searchPlaceholderKey = activeModule === "history" ? "搜索剪贴板内容" : activeModule === "phrases" ? "搜索常用语或分类" : "搜索图片尺寸";
 
   const searchPlaceholder = t(searchPlaceholderKey);
@@ -285,10 +300,10 @@ function App() {
     <main className={"app-shell" + (isMac ? " platform-mac" : "")}>
       <header className="app-header">
         <div className="brand-lockup"><span className="brand-name">G-paster</span></div>
-        <div className="header-actions"><button className="settings-entry" type="button" disabled={!!editor || !!preview} onClick={() => setShowSettings(!showSettings)} aria-label={t("设置")} title={t("设置")} aria-pressed={showSettings}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden="true"><path d="m9 3-1 3-3 1-1 3 2 2-1 3 2 2 3-1 2 2 3-1 1-3 3-1 1-3-2-2 1-3-2-2-3 1-2-2Z" /><circle cx="12" cy="12" r="3" /></svg></button><span className="brand-mark"><BrandIcon size={20} /></span></div>
+        <div className="header-actions"><button className="settings-entry" type="button" disabled={!!editor || !!preview} onClick={() => showSettings ? closeSettings() : setShowSettings(true)} aria-label={t("设置")} title={t("设置")} aria-pressed={showSettings}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden="true"><path d="m9 3-1 3-3 1-1 3 2 2-1 3 2 2 3-1 2 2 3-1 1-3 3-1 1-3-2-2 1-3-2-2-3 1-2-2Z" /><circle cx="12" cy="12" r="3" /></svg></button><span className="brand-mark"><BrandIcon size={20} /></span></div>
       </header>
 
-      {showSettings ? <SettingsPanel system={settings} onBack={() => { setShowSettings(false); window.setTimeout(() => searchRef.current?.focus(), 0); }} /> : <section className="workspace" aria-label={t("G-paster 工作区")}>
+      {showSettings ? <SettingsPanel system={settings} onBack={closeSettings} onDirtyChange={dirty => { settingsDirty.current = dirty; }} /> : <section className="workspace" aria-label={t("G-paster 工作区")}>
         <div className="search-wrap">
           <Icon name="search" size={16} />
           <input ref={searchRef} aria-label={searchPlaceholder} autoFocus autoComplete="off" onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder} value={query} />
@@ -346,8 +361,8 @@ function App() {
               <button className="image-preview-button" type="button" draggable onDragStart={(event) => startImageDrag(event, image.id)} onClick={() => void openImage(image)} aria-label={t("预览图片 {width} × {height}", { width: image.width, height: image.height })}><img src={image.previewDataUrl} alt={t("剪贴板图片")} /><span className="image-dimensions">{image.width} × {image.height}</span></button>
               <div className="image-card-footer"><time dateTime={new Date(image.copiedAt).toISOString()}>{formatTime(image.copiedAt)}</time><div className="entry-actions"><button className={image.isFavorite ? "icon-button favorite active" : "icon-button favorite"} type="button" onClick={() => void toggleFavorite(image)} aria-label={t(image.isFavorite ? "取消收藏" : "收藏图片")} title={t("收藏")}><Icon name="star" size={14} /></button><button className="icon-button" type="button" onClick={() => void copyEntry(image)} aria-label={t("复制图片回剪贴板")} title={t("复制图片")}><Icon name="copy" size={14} /></button><button className="icon-button" type="button" onClick={() => void saveImage(image.id)} aria-label={t("保存图片到本地")} title={t("保存到本地")}><Icon name="save" size={14} /></button><button className="icon-button delete-button" type="button" onClick={() => void deleteEntry(image.id)} aria-label={t("删除图片")} title={t("删除")}><Icon name="trash" size={14} /></button></div></div>
             </article>)}
-          </div> : <div className="empty-state"><span className="empty-icon"><Icon name={query ? "search" : "image"} size={18} /></span><strong>{t(query ? "没有找到这类图片" : "截图中转站还空着")}</strong><span>{t(query ? "试试输入图片尺寸。" : "复制或保存截图后，会自动收集最近 10 张。")}</span></div>}
-          <div className="module-toolbar screenshot-footer"><span className="toolbar-caption">{t("最近 {count} / 10 张", { count: images.length })}</span><span className="toolbar-spacer" />{images.some((image) => image.isFavorite) && <span className="favorite-caption"><Icon name="star" size={13} />{t("已收藏 {count}", { count: images.filter((image) => image.isFavorite).length })}</span>}</div>
+          </div> : <div className="empty-state"><span className="empty-icon"><Icon name={query ? "search" : "image"} size={18} /></span><strong>{t(query ? "没有找到这类图片" : "截图中转站还空着")}</strong><span>{t(query ? "试试输入图片尺寸。" : "复制或保存截图后，会自动收集最近 {limit} 张。", { limit: imageLimit })}</span></div>}
+          <div className="module-toolbar screenshot-footer"><span className="toolbar-caption">{t("当前 {count} 张，上限 {limit}", { count: images.length, limit: imageLimit })}</span><span className="toolbar-spacer" />{images.some((image) => image.isFavorite) && <span className="favorite-caption"><Icon name="star" size={13} />{t("已收藏 {count}", { count: images.filter((image) => image.isFavorite).length })}</span>}</div>
         </section>}
       </section>}
 

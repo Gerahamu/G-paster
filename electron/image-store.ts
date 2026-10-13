@@ -24,10 +24,12 @@ export class ImageStore {
   private readonly metadataPath: string;
   private readonly imagesDirectory: string;
 
-  constructor(metadataPath: string) {
+  constructor(metadataPath: string, private limit = MAX_CLIPBOARD_IMAGES) {
     this.metadataPath = metadataPath;
     this.imagesDirectory = join(dirname(metadataPath), "images");
   }
+
+  configureLimit(limit: number): void { this.limit = limit; }
 
   async list(): Promise<StoredImage[]> {
     await this.mutationQueue;
@@ -81,14 +83,15 @@ export class ImageStore {
       await rename(target + ".tmp", target);
 
       const next = [entry, ...this.entries.filter((candidate) => candidate.id !== entry.id)];
-      const evicted = next.slice(MAX_CLIPBOARD_IMAGES);
+      const limit = this.limit;
+      const evicted = next.slice(limit);
       try {
-        await this.persist(next.slice(0, MAX_CLIPBOARD_IMAGES));
+        await this.persist(next.slice(0, limit));
       } catch (error) {
         if (existingIndex < 0) await rm(join(this.imagesDirectory, entry.fileName), { force: true }).catch(() => undefined);
         throw error;
       }
-      this.entries = next.slice(0, MAX_CLIPBOARD_IMAGES);
+      this.entries = next.slice(0, limit);
       await Promise.all(evicted.map((old) => rm(join(this.imagesDirectory, old.fileName), { force: true }).catch(() => undefined)));
       return { ...entry };
     });
@@ -152,10 +155,11 @@ export class ImageStore {
               typeof candidate.isFavorite === "boolean";
           });
         entries.sort((left, right) => right.copiedAt - left.copiedAt);
-        const next = entries.slice(0, MAX_CLIPBOARD_IMAGES);
-        if (entries.length > MAX_CLIPBOARD_IMAGES) {
+        const limit = this.limit;
+        const next = entries.slice(0, limit);
+        if (entries.length > limit) {
           await this.persist(next);
-          await Promise.all(entries.slice(MAX_CLIPBOARD_IMAGES).map((entry) => rm(join(this.imagesDirectory, entry.fileName), { force: true }).catch(() => undefined)));
+          await Promise.all(entries.slice(limit).map((entry) => rm(join(this.imagesDirectory, entry.fileName), { force: true }).catch(() => undefined)));
         }
         this.entries = next;
         this.loaded = true;
