@@ -74,6 +74,7 @@ const english = {
   "常用语已保存。": "Phrase saved.", "保存常用语失败。": "Could not save the phrase.", "放弃未保存的常用语修改？": "Discard your unsaved phrase changes?",
   "剪贴板图片体积过大或无法解码，请尝试较小的 PNG 图片（保存上限 25 MB）。": "The image is too large or could not be decoded. Try a smaller PNG (25 MB storage limit).",
   "无法读取剪贴板图片，请检查图片格式及文件访问权限，再尝试重新复制。": "Could not read the image. Check its format and file permissions, then copy it again.",
+  "剪贴板图片像素过大（上限 5000 万像素），请缩小图片后重试。": "The image exceeds 50 megapixels. Reduce its dimensions and try again.",
   "剪贴板图片读取或保存失败，请检查系统剪贴板权限及应用数据目录。稍后会自动重试。": "Could not read or save the image. Check clipboard access and the app data folder. Retrying shortly.",
   "无法访问部分截图目录。请在系统设置 → 隐私与安全性 → 文件与文件夹中允许 G-paster 访问截图所在目录。": "Some screenshot folders are inaccessible. Allow G-paster access in System Settings → Privacy & Security → Files and Folders.",
   "部分截图导入失败，正在重试。请检查图片格式及本地存储权限。": "Some screenshots could not be imported. Retrying. Check their format and local storage permissions.",

@@ -8,19 +8,33 @@
 
 一个常驻 macOS 菜单栏的轻量剪贴板工具。<br />剪贴板、常用语、截图中转站，在一个紧凑面板里接着用。
 
-![版本 0.1.4](https://img.shields.io/badge/version-0.1.4-355de7?style=flat-square&labelColor=202a38) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-8691a1?style=flat-square&labelColor=202a38) ![本地存储](https://img.shields.io/badge/data-local%20only-579a86?style=flat-square&labelColor=202a38)
+![版本 0.1.6](https://img.shields.io/badge/version-0.1.6-355de7?style=flat-square&labelColor=202a38) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-8691a1?style=flat-square&labelColor=202a38) ![本地存储](https://img.shields.io/badge/data-local%20only-579a86?style=flat-square&labelColor=202a38)
 
-[认识 G-paster](#三个模块一个面板) · [开始使用](#开始使用) · [数据与隐私](#数据留在你的电脑上) · [参与开发](#开发与构建)
+[下载 macOS App](https://github.com/Gerahamu/G-paster/releases/download/v0.1.6/G-paster-v0.1.6-macos-arm64.zip) · [版本更新](https://github.com/Gerahamu/G-paster/releases/tag/v0.1.6) · [开始使用](#开始使用) · [参与开发](#开发与构建)
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/hero-dark.svg" />
-  <source media="(prefers-color-scheme: light)" srcset="docs/readme/hero-light.svg" />
-  <img src="docs/readme/hero-light.svg" width="1060" alt="G-paster 界面示意：紧凑的菜单栏面板，集中展示剪贴板、常用语和截图三个模块。" />
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/hero-dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="docs/readme/hero-light.png" />
+  <img src="docs/readme/hero-light.png" width="1060" alt="G-paster 界面示意：紧凑的菜单栏面板，集中展示剪贴板、常用语和截图三个模块。" />
 </picture>
 
 <sub>界面示意使用虚构内容，不包含真实剪贴板数据。</sub>
 
 </div>
+
+<br />
+
+## 0.1.6 · 更可靠地接住图片
+
+**补齐照片亭图片格式，改善相机照片与截图的采集。** 本次集中修复图片采集与异步操作问题，并回归紧凑操作面板。
+
+| 图片更可靠 | 面板更轻巧 | 操作更稳定 |
+| :--- | :--- | :--- |
+| 识别旧版 Apple TIFF / JPEG / PNG 和原生文件 URL；Photo Booth 提供图片数据时，可直接采集，减少对原图文件路径的依赖。 | 搜索框移入顶部工具栏，统一导航间距与图标尺寸，保留 400 × 460 px 的基本窗口。 | 修复慢图片解码与清空、重新复制之间的状态冲突；读取超时可恢复，图片失败时文本监听继续工作。 |
+
+相机照片在 macOS 上按 EXIF 方向转换为 PNG；启动时现有剪贴板图片也能进入历史。新增像素和文件读取边界，超限会提示，原文件保持原样。
+
+[完整更新记录](CHANGELOG.md) · [本次验证范围](docs/release-validation-v0.1.6.md)
 
 <br />
 
@@ -40,6 +54,7 @@
 - **按习惯设置。** 标题栏齿轮和菜单栏「设置」提供快捷键录入、恢复默认、开机启动及本地存储说明。支持中文／英文／跟随系统，浅色／深色／跟随系统，以及文本和图片保留数量编辑。修改保存到本机，快捷键和外观即时生效。
 - **跟随系统。** 语言和外观默认跟随系统，也可以在设置中手动选择；时间格式仍跟随系统区域。系统语言模式下，中文系统使用中文，其余语言使用英文。修改系统语言后，如 macOS 提示重启应用，请按提示重新启动。
 - **一个紧凑面板。** 默认 400 × 460 px，空记录状态约 400 × 340 px；点击窗口外部或关闭窗口后继续在后台运行。
+- **在当前桌面呼出。** macOS 使用可跨 Spaces 显示的面板窗口，减少唤出时被带回旧桌面的情况；完整跨桌面操作仍需在目标系统验证。
 - **复制 → 搜索 → 再复制 → 粘贴。** 在面板里找到内容并重新复制，回到目标应用使用正常的粘贴操作。
 
 | 操作 | macOS | 说明 |
@@ -61,6 +76,10 @@ macOS 截图监控读取桌面及系统配置的截图保存目录，在应用�
 
 复制到剪贴板的普通图片也会进入截图中转站，Finder 中复制的本地图片文件也支持收集。macOS 的 TIFF、HEIC 等表示会先转为 PNG 保存；当前版本不对图像内容做语义识别。
 
+Photo Booth 可能提供旧版 TIFF 与文件引用，而非标准 PNG。0.1.6 会尝试可读的图片表示及本机文件来源；源文件不可访问时，只要剪贴板仍含可解码图片数据，就能继续采集。仅有失效文件引用、尚未下载的云端原图或不支持的格式，仍需原文件可访问后重试。
+
+保存图片上限为 **25 MiB PNG、5000 万像素**。TIFF / BMP 原始表示与截图源文件可读取到 **100 MiB**，转换后的 PNG 仍须符合保存上限。不会为绕过上限自动缩小或裁剪照片。GIF 按静态图片处理；本轮实测 PNG、JPEG、TIFF、HEIC、BMP、GIF 与 JPEG 2000。WebP / AVIF 的识别已接入，解码依赖系统支持，尚未逐环境验证。
+
 若截图没有出现，请检查「系统设置 → 隐私与安全性 → 文件与文件夹」中 G-paster 对截图目录的访问权限，并在应用运行时新截一张图。0.1.1 起，目录访问、图片读取和导入失败会在面板显示提示，失败截图会重试；一个目录无法访问不会阻止其他可访问目录。
 
 </details>
@@ -69,7 +88,30 @@ macOS 截图监控读取桌面及系统配置的截图保存目录，在应用�
 
 ## 开始使用
 
-**当前 GitHub 仓库提供源码，还没有可直接下载的 App 安装包。** 已进行开发、打包和启动验证的平台为 macOS Apple Silicon（arm64）；Intel Mac、Windows 和 Linux 尚未完成发布验证。
+### 直接下载
+
+1. 下载 [G-paster v0.1.6 · macOS Apple Silicon](https://github.com/Gerahamu/G-paster/releases/download/v0.1.6/G-paster-v0.1.6-macos-arm64.zip)。
+2. 解压后将 `G-paster.app` 放入「应用程序」文件夹。更新已有版本时，先从菜单栏退出旧应用，再替换 `.app`。
+3. 打开应用，通过菜单栏图标或 <kbd>Control</kbd> + <kbd>C</kbd> 呼出面板；如快捷键冲突，可在设置中修改。
+
+发布包仅提供 **macOS Apple Silicon（arm64）**。安装包元数据要求 macOS 13.0 或更高，本轮实测环境为 macOS 27.0.1 / arm64；Intel Mac、其他 macOS 版本、Windows 和 Linux 尚未完成本轮发布验证。
+
+发布包使用 **ad-hoc 签名**并检查完整性，尚未经过 Developer ID 签名或 Apple 公证。若系统限制打开，请参阅下方说明。
+
+<details>
+<summary><strong>校验下载文件</strong></summary>
+
+从同一 [Release](https://github.com/Gerahamu/G-paster/releases/tag/v0.1.6) 下载 `SHA256SUMS.txt`，与压缩包放在同一文件夹，再执行：
+
+```bash
+shasum -a 256 -c SHA256SUMS.txt
+```
+
+成功时显示压缩包文件名及 `OK`。校验只能确认文件完整性，不代表 Apple 公证。
+
+</details>
+
+### 从源码启动
 
 在 macOS 上准备 **Node.js 22.12.0 或更新版本**与 npm，然后执行：
 
@@ -98,7 +140,7 @@ npm run package:mac
 只有在你确认应用来源和内容可信时，才考虑移除该应用的隔离属性。以下路径适用于放在「应用程序」中的 G-paster：
 
 ```bash
-xattr -cr /Applications/G-paster.app
+xattr -dr com.apple.quarantine /Applications/G-paster.app
 ```
 
 移除隔离属性不等于应用已经过 Apple 公证，也不能替代安装与安全验证。
@@ -149,6 +191,7 @@ G-paster 无需账户或云端服务，不向外部服务上传剪贴板内容�
 | `npm run test:images:app` | 用隔离数据和可控剪贴板输入，验证实际主进程、preload、UI、错误恢复与清空竞态 |
 | `npm run test:system:app` | 用隔离数据验证中英文、浅深色、原生菜单和未保存输入保留（不修改系统设置） |
 | `npm run test:settings:app` | 验证窗口开关、设置入口、快捷键录入与冲突回退；使用隔离数据和受控系统接口，不修改系统登录项 |
+| `npm run test:window:mac` | macOS 原生面板焦点、显示／隐藏、关闭及后台采集回归；完整跨 Spaces 操作另需人工验证 |
 | `npm run build` | 编译 Electron 主进程并构建前端 |
 | `npm run package:mac` | 生成 macOS arm64 应用 |
 
@@ -178,6 +221,6 @@ scripts/                开发启动及 macOS 后台应用配置
 
 [反馈问题](https://github.com/Gerahamu/G-paster/issues) · [浏览源码](https://github.com/Gerahamu/G-paster)
 
-<sub>当前版本 0.1.4 · macOS arm64 优先 · 仓库尚未添加开源许可证</sub>
+<sub>当前版本 0.1.6 · macOS arm64 发布包 · 仓库尚未添加开源许可证</sub>
 
 </div>

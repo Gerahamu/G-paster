@@ -28,12 +28,49 @@ app.whenReady().then(async () => {
   await writeFile(pngPath, png);
   const formats = { "image/png": png, "image/jpeg": fixture.toJPEG(90) };
   if (process.platform === "darwin") {
-    for (const [format, mime] of [["tiff", "image/tiff"], ["heic", "image/heic"]]) {
+    for (const [format, mime] of [["tiff", "image/tiff"], ["heic", "image/heic"], ["bmp", "image/bmp"], ["gif", "image/gif"], ["jp2", "image/jp2"]]) {
       const path = join(directory, `fixture.${format}`);
       await promisify(execFile)("/usr/bin/sips", ["-s", "format", format, pngPath, "--out", path]);
       formats[mime] = await readFile(path);
     }
   }
+  for (const type of ['electron application/osclipboard;format="NeXT TIFF v4.0 pasteboard type"', 'electron application/osclipboard;format="Apple JPEG pasteboard type"']) {
+    const bytes = type.includes('TIFF') ? formats['image/tiff'] : formats['image/jpeg'];
+    if (!bytes) continue;
+    const result = await readImageItems([{types:['image/png',type],getType:async key => new Blob([key === 'image/png' ? new Uint8Array() : new Uint8Array(bytes)])}], '', decodeImageBuffer);
+    assert.equal(result?.width, 16);
+    console.log(`PASS unreadable PNG falls back to actual Apple ${type.includes('TIFF') ? 'TIFF' : 'JPEG'} bytes`);
+  }
+  const nativeReference = 'electron application/osclipboard;format="public.file-url"';
+  assert.ok((await readImageItems([{types:[nativeReference],getType:async () => new Blob([pathToFileURL(pngPath).href])}], '', decodeImageBuffer))?.buffer);
+  console.log('PASS native Apple file URL fallback → bounded file read → real PNG decode');
+  // All eight EXIF directions, including mirrored camera images, must survive normalization.
+  if (process.platform === 'darwin') {
+    const cameraPixels = Buffer.alloc(8 * 5 * 4);
+    for (let y=0;y<5;y++) for(let x=0;x<8;x++) {
+      const offset=(y*8+x)*4;
+      cameraPixels[offset]=x*25; cameraPixels[offset+1]=y*45; cameraPixels[offset+2]=x*10+y*5; cameraPixels[offset+3]=255;
+    }
+    const jpeg = nativeImage.createFromBitmap(cameraPixels,{width:8,height:5}).toJPEG(100);
+    const reference = nativeImage.createFromBuffer(jpeg).toBitmap();
+    for (let orientation=1;orientation<=8;orientation++) {
+      const exif=Buffer.alloc(32); exif.write('Exif\0\0',0,'ascii'); exif.write('II',6,'ascii'); exif.writeUInt16LE(42,8); exif.writeUInt32LE(8,10); exif.writeUInt16LE(1,14);
+      exif.writeUInt16LE(0x112,16);exif.writeUInt16LE(3,18);exif.writeUInt32LE(1,20);exif.writeUInt16LE(orientation,24);
+      const segment=Buffer.alloc(4); segment[0]=255;segment[1]=225;segment.writeUInt16BE(exif.length+2,2);
+      const result=await decodeImageBuffer(Buffer.concat([jpeg.subarray(0,2),segment,exif,jpeg.subarray(2)]));
+      const width=orientation>=5?5:8, height=orientation>=5?8:5;
+      assert.equal(result?.width,width,`orientation ${orientation} width`); assert.equal(result?.height,height,`orientation ${orientation} height`);
+      const bitmap=nativeImage.createFromBuffer(result.buffer).toBitmap();
+      for(let y=0;y<height;y++) for(let x=0;x<width;x++) {
+        const [sx,sy] = {1:[x,y],2:[7-x,y],3:[7-x,4-y],4:[x,4-y],5:[y,x],6:[y,4-x],7:[7-y,4-x],8:[7-y,x]}[orientation];
+        for(let channel=0;channel<3;channel++) assert.ok(Math.abs(bitmap[(y*width+x)*4+channel]-reference[(sy*8+sx)*4+channel])<15,`orientation ${orientation} pixel ${x},${y} channel ${channel}`);
+      }
+    }
+    console.log('PASS all 8 JPEG EXIF orientations, including mirrored photos, preserve visible pixels');
+  }
+  const bomb=Buffer.alloc(24); Buffer.from([137,80,78,71,13,10,26,10]).copy(bomb); bomb.write('IHDR',12);bomb.writeUInt32BE(100000,16);bomb.writeUInt32BE(100000,20);
+  await assert.rejects(decodeImageBuffer(bomb),/5000 万像素/);
+  console.log('PASS huge PNG header rejected before native bitmap allocation');
   const store = new ImageStore(join(directory, "image-history.json"));
   for (const [type, bytes] of Object.entries(formats)) {
     const result = await readImageItems([new ClipboardItem({ [type]: new Blob([new Uint8Array(bytes)], { type }) })], "", decodeImageBuffer);

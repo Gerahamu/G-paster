@@ -17,7 +17,7 @@ import {
 } from "electron";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { AppPreferences, CaptureIssue, ClipboardHistoryItem, QuickPhraseDraft, QuickPhraseUpdate, SystemSettings } from "../src/shared/contracts";
@@ -28,7 +28,8 @@ import { PhraseStore } from "./phrase-store";
 import { getMacScreenshotDirectories, ScreenshotMonitor } from "./screenshot-monitor";
 import { getDevServerOrigin, isTrustedPageUrl, type TrustedOriginPolicy } from "./trusted-origin";
 import { decodeImageBuffer } from "./image-codec";
-import { readImageItems } from "./clipboard-images";
+import { readClipboardImages } from "./clipboard-images";
+import { readImageFile } from "./image-limits";
 import { readSystemSettings } from "./system-settings";
 import { translate, type TranslationKey } from "../src/shared/i18n";
 
@@ -36,7 +37,6 @@ const APP_NAME = "G-paster";
 const GLOBAL_SHORTCUT = process.platform === "darwin" ? "Control+C" : "Control+Shift+G";
 const CLIPBOARD_POLL_MS = 180;
 const MAX_CLIPBOARD_TEXT_LENGTH = 2_000_000;
-const MAX_SCREENSHOT_FILE_BYTES = 100 * 1024 * 1024;
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -53,6 +53,8 @@ let isNativeDialogOpen = false;
 let isPolling = false;
 let isPollingImage = false;
 let imageCaptureGeneration = 0;
+let clipboardWriteGeneration = 0;
+let imageCapturePauseDepth = 0;
 let historyPublishGeneration = 0;
 const imagePreviewCache = new Map<string, { hash: string; dataUrl: string }>();
 const captureIssues = new Map<CaptureIssue["source"], CaptureIssue>();
@@ -282,7 +284,19 @@ async function publishHistory(): Promise<void> {
 }
 
 async function readClipboardImage(): Promise<{ buffer?: Buffer; width?: number; height?: number; hash: string } | null> {
-  return readImageItems(await clipboard.read(), lastClipboardImageHash, decodeImageBuffer);
+  return readClipboardImages(() => clipboard.read(), lastClipboardImageHash, decodeImageBuffer);
+}
+
+async function updateClipboard<T>(operation: () => Promise<T>): Promise<T> {
+  clipboardWriteGeneration++;
+  imageCapturePauseDepth++;
+  try { return await operation(); }
+  finally { clipboardWriteGeneration++; imageCapturePauseDepth--; }
+}
+
+function clearImageCaptureIssue(): void {
+  nextImagePollAt = 0;
+  reportCaptureIssue("clipboard-image", null);
 }
 
 function isStringRecord(value: unknown): value is Record<string, unknown> {
@@ -316,15 +330,18 @@ function registerHistoryIpc(): void {
     assertTrustedWindow(event);
     // Invalidate any conversion that started before the user's clear operation.
     imageCaptureGeneration++;
-    const results = await Promise.allSettled([historyStore.clear(), imageStore.clear()]);
-    try { lastClipboardImageHash = (await readClipboardImage())?.hash ?? ""; }
-    catch { lastClipboardImageHash = ""; }
-    try { rememberClipboardText(await clipboard.readText()); }
-    catch { lastClipboardText = ""; }
-    await publishHistory();
-    if (results.some((result) => result.status === "rejected")) {
-      throw new Error("部分记录未能清空，请检查后重试。");
-    }
+    imageCapturePauseDepth++;
+    try {
+      const results = await Promise.allSettled([historyStore.clear(), imageStore.clear()]);
+      try { lastClipboardImageHash = (await readClipboardImage())?.hash ?? ""; }
+      catch { lastClipboardImageHash = ""; }
+      try { rememberClipboardText(await clipboard.readText()); }
+      catch { lastClipboardText = ""; }
+      await publishHistory();
+      if (results.some((result) => result.status === "rejected")) {
+        throw new Error("部分记录未能清空，请检查后重试。");
+      }
+    } finally { imageCapturePauseDepth--; }
   });
 
   ipcMain.handle("history:copy", async (event, id: unknown) => {
@@ -332,25 +349,31 @@ function registerHistoryIpc(): void {
     if (typeof id !== "string" || id.length > 100) return false;
     const entry = await historyStore.get(id);
     if (entry) {
-      await clipboard.writeText(entry.content);
-      await historyStore.recordClipboardText(entry.content);
-      rememberClipboardText(entry.content);
-      lastClipboardImageHash = "";
-      await publishHistory();
-      hideWindow();
-      return true;
+      return updateClipboard(async () => {
+        await clipboard.writeText(entry.content);
+        await historyStore.recordClipboardText(entry.content);
+        rememberClipboardText(entry.content);
+        lastClipboardImageHash = "";
+        clearImageCaptureIssue();
+        await publishHistory();
+        hideWindow();
+        return true;
+      });
     }
 
     const image = await imageStore.get(id);
     const bytes = image ? await imageStore.read(id) : null;
     if (!image || !bytes) return false;
-    await clipboard.write([new ClipboardItem({ "image/png": new Blob([new Uint8Array(bytes)], { type: "image/png" }) })]);
-    await imageStore.record(bytes, image.width, image.height);
-    rememberClipboardText("");
-    lastClipboardImageHash = createHash("sha256").update(bytes).digest("hex");
-    await publishHistory();
-    hideWindow();
-    return true;
+    return updateClipboard(async () => {
+      await clipboard.write([new ClipboardItem({ "image/png": new Blob([new Uint8Array(bytes)], { type: "image/png" }) })]);
+      await imageStore.record(bytes, image.width, image.height);
+      rememberClipboardText("");
+      lastClipboardImageHash = createHash("sha256").update(bytes).digest("hex");
+      clearImageCaptureIssue();
+      await publishHistory();
+      hideWindow();
+      return true;
+    });
   });
 
   ipcMain.handle("image:favorite", async (event, id: unknown) => {
@@ -423,13 +446,16 @@ function registerPhraseIpc(): void {
     if (typeof id !== "string" || id.length > 100) return false;
     const phrase = await phraseStore.get(id);
     if (!phrase) return false;
-    await clipboard.writeText(phrase.text);
-    await historyStore.recordClipboardText(phrase.text);
-    rememberClipboardText(phrase.text);
-    lastClipboardImageHash = "";
-    await publishHistory();
-    hideWindow();
-    return true;
+    return updateClipboard(async () => {
+      await clipboard.writeText(phrase.text);
+      await historyStore.recordClipboardText(phrase.text);
+      rememberClipboardText(phrase.text);
+      lastClipboardImageHash = "";
+      clearImageCaptureIssue();
+      await publishHistory();
+      hideWindow();
+      return true;
+    });
   });
 
   ipcMain.handle("phrase:save-history", async (event, id: unknown, category: unknown) => {
@@ -517,6 +543,8 @@ function createWindow(): void {
     }
   };
   if (process.platform === "darwin") {
+    // A non-activating NSPanel receives keyboard focus without switching Spaces.
+    windowOptions.type = "panel";
     windowOptions.titleBarStyle = "hiddenInset";
     windowOptions.trafficLightPosition = { x: 12, y: 13 };
   }
@@ -524,7 +552,7 @@ function createWindow(): void {
   mainWindow = new BrowserWindow(windowOptions);
   if (process.platform === "darwin") {
     mainWindow.setVisibleOnAllWorkspaces(true, {
-      visibleOnFullScreen: false,
+      visibleOnFullScreen: true,
       skipTransformProcessType: true
     });
   }
@@ -568,15 +596,18 @@ function createWindow(): void {
 }
 
 async function pollClipboardImage(): Promise<void> {
-  if (isPollingImage || Date.now() < nextImagePollAt) return;
+  if (isPollingImage || imageCapturePauseDepth > 0 || Date.now() < nextImagePollAt) return;
   isPollingImage = true;
   const generation = imageCaptureGeneration;
+  const writeGeneration = clipboardWriteGeneration;
+  const isCurrent = () => generation === imageCaptureGeneration && writeGeneration === clipboardWriteGeneration;
+  const copiedAt = Date.now();
   try {
     const currentImage = await readClipboardImage();
-    if (generation !== imageCaptureGeneration) return;
+    if (!isCurrent()) return;
     if (currentImage?.buffer && currentImage.width && currentImage.height) {
-      await imageStore.record(currentImage.buffer, currentImage.width, currentImage.height);
-      if (generation !== imageCaptureGeneration) return;
+      await imageStore.record(currentImage.buffer, currentImage.width, currentImage.height, copiedAt);
+      if (!isCurrent()) return;
       lastClipboardImageHash = currentImage.hash;
       await publishHistory();
     } else if (!currentImage) {
@@ -584,6 +615,7 @@ async function pollClipboardImage(): Promise<void> {
     }
     reportCaptureIssue("clipboard-image", null);
   } catch (error) {
+    if (!isCurrent()) return;
     console.error("Could not save clipboard image:", error);
     nextImagePollAt = Date.now() + 3_000;
     reportCaptureIssue("clipboard-image", error instanceof Error && (error.message.startsWith("剪贴板") || error.message.startsWith("无法读取剪贴板"))
@@ -646,11 +678,8 @@ if (!app.requestSingleInstanceLock()) {
     await Promise.all([historyStore.list(), imageStore.list(), phraseStore.list()]);
     try { rememberClipboardText(await clipboard.readText()); }
     catch { lastClipboardText = ""; }
-    try {
-      lastClipboardImageHash = (await readClipboardImage())?.hash ?? "";
-    } catch {
-      lastClipboardImageHash = "";
-    }
+    // Do not decode a lazy/large clipboard image before the tray and shortcut are ready.
+    // The first background poll imports it; normalized PNG deduplication prevents duplicates.
     if (process.platform === "darwin") {
       app.dock?.setIcon(nativeImage.createFromPath(join(app.getAppPath(), "assets", "G-paster-icon.png")));
       app.dock?.hide();
@@ -670,8 +699,7 @@ if (!app.requestSingleInstanceLock()) {
         getMacScreenshotDirectories(app.getPath("desktop")),
         async (screenshotPath) => {
           const generation = imageCaptureGeneration;
-          const source = await readFile(screenshotPath);
-          if (source.byteLength > MAX_SCREENSHOT_FILE_BYTES) throw new Error("Screenshot file is too large.");
+          const source = await readImageFile(screenshotPath);
           const image = await decodeImageBuffer(source);
           if (!image) throw new Error("Screenshot file is not a supported image.");
           if (generation !== imageCaptureGeneration) return;

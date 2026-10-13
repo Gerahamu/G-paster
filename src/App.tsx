@@ -6,7 +6,7 @@ import SettingsPanel from "./SettingsPanel";
 import { DEFAULT_PREFERENCES } from "./shared/preferences";
 
 type ModuleName = "history" | "phrases" | "screenshots";
-type IconName = "history" | "phrase" | "image" | "search" | "link" | "text" | "copy" | "trash" | "close" | "plus" | "edit" | "star" | "save" | "bookmark";
+type IconName = "history" | "phrase" | "image" | "search" | "link" | "text" | "copy" | "trash" | "close" | "plus" | "edit" | "star" | "save" | "bookmark" | "settings";
 type PhraseEditorState = { id?: string; sourceHistoryId?: string; originalText?: string; text: string; category: string };
 
 const moduleNames: Record<ModuleName, TranslationKey> = { history: "剪贴板", phrases: "常用语", screenshots: "截图" };
@@ -28,6 +28,7 @@ function Icon({ name, size = 17 }: { name: IconName; size?: number }) {
     case "star": return <svg {...base}><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z" /></svg>;
     case "save": return <svg {...base}><path d="M12 3v12m0 0 4-4m-4 4-4-4" /><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" /></svg>;
     case "bookmark": return <svg {...base}><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-4-6 4V4.5Z" /></svg>;
+    case "settings": return <svg {...base}><path d="M10.25 3.78 10.37 1.73 13.63 1.73 13.75 3.78 14.87 5.07 16.57 4.96 18.11 3.59 20.41 5.89 19.04 7.43 18.93 9.13 20.22 10.25 22.27 10.37 22.27 13.63 20.22 13.75 18.93 14.87 19.04 16.57 20.41 18.11 18.11 20.41 16.57 19.04 14.87 18.93 13.75 20.22 13.63 22.27 10.37 22.27 10.25 20.22 9.13 18.93 7.43 19.04 5.89 20.41 3.59 18.11 4.96 16.57 5.07 14.87 3.78 13.75 1.73 13.63 1.73 10.37 3.78 10.25 5.07 9.13 4.96 7.43 3.59 5.89 5.89 3.59 7.43 4.96 9.13 5.07Z" /><circle cx="12" cy="12" r="3" /></svg>;
   }
 }
 
@@ -299,17 +300,17 @@ function App() {
   return (
     <main className={"app-shell" + (isMac ? " platform-mac" : "")}>
       <header className="app-header">
-        <div className="brand-lockup"><span className="brand-name">G-paster</span></div>
-        <div className="header-actions"><button className="settings-entry" type="button" disabled={!!editor || !!preview} onClick={() => showSettings ? closeSettings() : setShowSettings(true)} aria-label={t("设置")} title={t("设置")} aria-pressed={showSettings}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden="true"><path d="m9 3-1 3-3 1-1 3 2 2-1 3 2 2 3-1 2 2 3-1 1-3 3-1 1-3-2-2 1-3-2-2-3 1-2-2Z" /><circle cx="12" cy="12" r="3" /></svg></button><span className="brand-mark"><BrandIcon size={20} /></span></div>
+        <div className="header-search-slot">
+          {!showSettings && <div className="search-wrap">
+            <Icon name="search" size={14} />
+            <input ref={searchRef} aria-label={searchPlaceholder} autoFocus autoComplete="off" onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder} value={query} />
+            {query ? <button className="clear-search" type="button" aria-label={t("清除搜索")} onClick={() => { setQuery(""); searchRef.current?.focus(); }}><Icon name="close" size={14} /></button> : <kbd>{isMac ? "⌘ F" : "Ctrl F"}</kbd>}
+          </div>}
+        </div>
+        <div className="header-actions"><button className="settings-entry" type="button" disabled={!!editor || !!preview} onClick={() => showSettings ? closeSettings() : setShowSettings(true)} aria-label={t("设置")} title={t("设置")} aria-pressed={showSettings}><Icon name="settings" size={16} /></button><span className="brand-mark"><BrandIcon size={18} /></span></div>
       </header>
 
       {showSettings ? <SettingsPanel system={settings} onBack={closeSettings} onDirtyChange={dirty => { settingsDirty.current = dirty; }} /> : <section className="workspace" aria-label={t("G-paster 工作区")}>
-        <div className="search-wrap">
-          <Icon name="search" size={16} />
-          <input ref={searchRef} aria-label={searchPlaceholder} autoFocus autoComplete="off" onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder} value={query} />
-          {query ? <button className="clear-search" type="button" aria-label={t("清除搜索")} onClick={() => { setQuery(""); searchRef.current?.focus(); }}><Icon name="close" size={14} /></button> : <kbd>{isMac ? "⌘ F" : "Ctrl F"}</kbd>}
-        </div>
-
         <nav className="module-tabs" aria-label={t("功能模块")}>
           <button className={activeModule === "history" ? "module-tab active" : "module-tab"} onClick={() => selectModule("history")} type="button" aria-pressed={activeModule === "history"}><Icon name="history" size={15} /><span>{t(moduleNames.history)}</span><span className="tab-count">{entries.length}</span></button>
           <button className={activeModule === "phrases" ? "module-tab active" : "module-tab"} onClick={() => selectModule("phrases")} type="button" aria-pressed={activeModule === "phrases"}><Icon name="phrase" size={15} /><span>{t(moduleNames.phrases)}</span><span className="tab-count">{phrases.length}</span></button>
