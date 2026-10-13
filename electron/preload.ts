@@ -17,6 +17,16 @@ function initialSystemSettings(): GpasterBridge["initialSystemSettings"] {
 }
 
 const bridge: GpasterBridge = {
+  getPreferences: () => ipcRenderer.invoke("preferences:get"),
+  setShortcut: (shortcut) => ipcRenderer.invoke("preferences:shortcut", shortcut),
+  setOpenAtLogin: (enabled) => ipcRenderer.invoke("preferences:login", enabled),
+  setShortcutRecording: (recording) => ipcRenderer.invoke("preferences:recording", recording),
+  openDataDirectory: () => ipcRenderer.invoke("preferences:open-data"),
+  onSettingsRequested: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on("settings:open", listener);
+    return () => ipcRenderer.removeListener("settings:open", listener);
+  },
   initialSystemSettings: initialSystemSettings(),
   getSystemSettings: async () => (await ipcRenderer.invoke("system:settings")) as GpasterBridge["initialSystemSettings"],
   onSystemSettingsChanged: (callback) => {

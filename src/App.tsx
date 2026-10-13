@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent,
 import type { CaptureIssue, ClipboardEntry, ClipboardHistoryItem, ClipboardImageEntry, QuickPhrase } from "./shared/contracts";
 import { errorKey, translate, translateMessage, type TranslationKey, type TranslationValues } from "./shared/i18n";
 import gpasterIcon from "../assets/G-paster-brand.png";
+import SettingsPanel from "./SettingsPanel";
 
 type ModuleName = "history" | "phrases" | "screenshots";
 type IconName = "history" | "phrase" | "image" | "search" | "link" | "text" | "copy" | "trash" | "close" | "plus" | "edit" | "star" | "save" | "bookmark";
@@ -49,6 +50,7 @@ function App() {
   const [entries, setEntries] = useState<ClipboardHistoryItem[]>([]);
   const [phrases, setPhrases] = useState<QuickPhrase[]>([]);
   const [activeModule, setActiveModule] = useState<ModuleName>("history");
+  const [showSettings, setShowSettings] = useState(false);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [loading, setLoading] = useState(true);
@@ -104,6 +106,7 @@ function App() {
       setLoading(false);
     });
     const unsubscribeShown = window.gpaster.onWindowShown(() => {
+      setShowSettings(false);
       setQuery("");
       setActiveModule("history");
       void Promise.all([refreshHistory(), refreshPhrases()]).catch(() => setError("读取本地内容失败。"));
@@ -119,7 +122,8 @@ function App() {
         setLoading(false);
         setError("读取本地内容失败。请稍后重试。");
       });
-    return () => { unsubscribeHistory(); unsubscribeShown(); unsubscribeIssues(); };
+    const unsubscribeSettings = window.gpaster.onSettingsRequested(() => setShowSettings(true));
+    return () => { unsubscribeHistory(); unsubscribeShown(); unsubscribeIssues(); unsubscribeSettings(); };
   }, []);
 
   useEffect(() => {
@@ -128,11 +132,15 @@ function App() {
 
   const activeCount = activeModule === "history" ? entries.length : activeModule === "phrases" ? phrases.length : images.length;
   useEffect(() => {
-    if (!loading) window.gpaster.setCompactMode(activeCount === 0);
-  }, [activeCount, loading]);
+    if (showSettings || !loading) window.gpaster.setCompactMode(!showSettings && activeCount === 0);
+  }, [activeCount, loading, showSettings]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (showSettings) {
+        if (event.key === "Escape") setShowSettings(false);
+        return;
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
         event.preventDefault();
         searchRef.current?.focus();
@@ -145,7 +153,7 @@ function App() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [editor, preview, settings.language]);
+  }, [editor, preview, settings.language, showSettings]);
 
   const filteredEntries = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
@@ -277,10 +285,10 @@ function App() {
     <main className={"app-shell" + (isMac ? " platform-mac" : "")}>
       <header className="app-header">
         <div className="brand-lockup"><span className="brand-name">G-paster</span></div>
-        <span className="brand-mark"><BrandIcon size={20} /></span>
+        <div className="header-actions"><button className="settings-entry" type="button" disabled={!!editor || !!preview} onClick={() => setShowSettings(!showSettings)} aria-label={t("设置")} title={t("设置")} aria-pressed={showSettings}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden="true"><path d="m9 3-1 3-3 1-1 3 2 2-1 3 2 2 3-1 2 2 3-1 1-3 3-1 1-3-2-2 1-3-2-2-3 1-2-2Z" /><circle cx="12" cy="12" r="3" /></svg></button><span className="brand-mark"><BrandIcon size={20} /></span></div>
       </header>
 
-      <section className="workspace" aria-label={t("G-paster 工作区")}>
+      {showSettings ? <SettingsPanel system={settings} onBack={() => { setShowSettings(false); window.setTimeout(() => searchRef.current?.focus(), 0); }} /> : <section className="workspace" aria-label={t("G-paster 工作区")}>
         <div className="search-wrap">
           <Icon name="search" size={16} />
           <input ref={searchRef} aria-label={searchPlaceholder} autoFocus autoComplete="off" onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder} value={query} />
@@ -341,7 +349,7 @@ function App() {
           </div> : <div className="empty-state"><span className="empty-icon"><Icon name={query ? "search" : "image"} size={18} /></span><strong>{t(query ? "没有找到这类图片" : "截图中转站还空着")}</strong><span>{t(query ? "试试输入图片尺寸。" : "复制或保存截图后，会自动收集最近 10 张。")}</span></div>}
           <div className="module-toolbar screenshot-footer"><span className="toolbar-caption">{t("最近 {count} / 10 张", { count: images.length })}</span><span className="toolbar-spacer" />{images.some((image) => image.isFavorite) && <span className="favorite-caption"><Icon name="star" size={13} />{t("已收藏 {count}", { count: images.filter((image) => image.isFavorite).length })}</span>}</div>
         </section>}
-      </section>
+      </section>}
 
       {editor && <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) closeEditor(); }}><form className="phrase-dialog" role="dialog" aria-modal="true" aria-labelledby="phrase-dialog-title" onSubmit={(event) => void savePhrase(event)}>
         <div className="dialog-heading"><h2 id="phrase-dialog-title">{t(editor.id ? "编辑常用语" : editor.sourceHistoryId ? "保存为常用语" : "新增常用语")}</h2><button className="icon-button" type="button" onClick={closeEditor} aria-label={t("关闭")}><Icon name="close" size={16} /></button></div>

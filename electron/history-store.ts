@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { ClipboardEntry, ClipboardEntryKind } from "../src/shared/contracts";
 import { readJsonArray, writeJsonArray } from "./atomic-json";
 
-const MAX_HISTORY_ENTRIES = 300;
+export const MAX_HISTORY_ENTRIES = 300;
 
 export function classifyContent(content: string): ClipboardEntryKind {
   try {

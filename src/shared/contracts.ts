@@ -5,6 +5,21 @@ export interface SystemSettings {
   locale: string;
 }
 
+export interface AppPreferences {
+  shortcut: string;
+  defaultShortcut: string;
+  shortcutRegistered: boolean;
+  loginSupported: boolean;
+  openAtLogin: boolean;
+  loginStatus: "enabled" | "disabled" | "requires-approval" | "unavailable";
+  version: string;
+  textLimit: number;
+  imageLimit: number;
+}
+
+export type PreferenceFailure = "shortcut-invalid" | "shortcut-conflict" | "settings-save-failed" | "login-unavailable" | "login-failed";
+export interface PreferenceResult { settings: AppPreferences; error: PreferenceFailure | null }
+
 export type ClipboardEntryKind = "text" | "link";
 
 export interface ClipboardEntry {
@@ -52,6 +67,12 @@ export interface QuickPhraseUpdate extends QuickPhraseDraft {
 }
 
 export interface GpasterBridge {
+  getPreferences(): Promise<AppPreferences>;
+  setShortcut(shortcut: string): Promise<PreferenceResult>;
+  setOpenAtLogin(enabled: boolean): Promise<PreferenceResult>;
+  setShortcutRecording(recording: boolean): Promise<void>;
+  openDataDirectory(): Promise<boolean>;
+  onSettingsRequested(callback: () => void): () => void;
   readonly initialSystemSettings: SystemSettings;
   getSystemSettings(): Promise<SystemSettings>;
   onSystemSettingsChanged(callback: (settings: SystemSettings) => void): () => void;

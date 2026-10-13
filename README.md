@@ -8,7 +8,7 @@
 
 一个常驻 macOS 菜单栏的轻量剪贴板工具。<br />剪贴板、常用语、截图中转站，在一个紧凑面板里接着用。
 
-![版本 0.1.2](https://img.shields.io/badge/version-0.1.2-355de7?style=flat-square&labelColor=202a38) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-8691a1?style=flat-square&labelColor=202a38) ![本地存储](https://img.shields.io/badge/data-local%20only-579a86?style=flat-square&labelColor=202a38)
+![版本 0.1.3](https://img.shields.io/badge/version-0.1.3-355de7?style=flat-square&labelColor=202a38) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-8691a1?style=flat-square&labelColor=202a38) ![本地存储](https://img.shields.io/badge/data-local%20only-579a86?style=flat-square&labelColor=202a38)
 
 [认识 G-paster](#三个模块一个面板) · [开始使用](#开始使用) · [数据与隐私](#数据留在你的电脑上) · [参与开发](#开发与构建)
 
@@ -37,20 +37,23 @@
 ### 用完即收，随时再开
 
 - **住在菜单栏。** macOS 上后台运行，默认不占据 Dock；点击菜单栏图标即可打开。
+- **按习惯设置。** 标题栏齿轮和菜单栏「设置」提供快捷键录入、恢复默认、开机启动及本地存储说明。设置页面保持紧凑，语言与外观没有手动开关。
 - **跟随系统。** 界面语言由系统首选语言决定：中文系统使用中文，其余语言使用英文；时间格式跟随系统区域。浅色／深色外观自动跟随系统变化，应用内没有语言或主题切换设置。修改系统语言后，如 macOS 提示重启应用，请按提示重新启动。
 - **一个紧凑面板。** 默认 400 × 460 px，空记录状态约 400 × 340 px；点击窗口外部或关闭窗口后继续在后台运行。
 - **复制 → 搜索 → 再复制 → 粘贴。** 在面板里找到内容并重新复制，回到目标应用使用正常的粘贴操作。
 
 | 操作 | macOS | 说明 |
 | :--- | :--- | :--- |
-| 呼出面板 | <kbd>Control</kbd> + <kbd>C</kbd> | 也可直接点击菜单栏图标 |
+| 打开／收起面板 | <kbd>Control</kbd> + <kbd>C</kbd> | 再次按下收起；可在设置中更改 |
 | 聚焦搜索 | <kbd>⌘</kbd> + <kbd>F</kbd> | 在 G-paster 窗口内使用 |
 | 粘贴内容 | <kbd>⌘</kbd> + <kbd>V</kbd> | 在目标应用内使用 |
 
 <details>
 <summary><strong>关于快捷键与截图识别</strong></summary>
 
-`Control+C` 是当前 macOS 默认全局快捷键，可能与终端的中断操作或其他软件冲突。当前版本没有快捷键设置界面；如快捷键注册失败，可通过菜单栏打开面板。Windows 源码中的默认快捷键为 `Control+Shift+G`，该平台尚未完成发布验证。
+`Control+C` 是当前 macOS 默认全局快捷键，可能与终端的中断操作或其他软件冲突。标题栏齿轮或菜单栏「设置」可更换快捷键、恢复默认和设置开机启动；如快捷键注册失败，可通过菜单栏打开面板。Windows 源码中的默认快捷键为 `Control+Shift+G`，该平台尚未完成发布验证。
+
+开机启动使用系统登录项，由用户主动开启；需要系统批准时，设置页会显示提示。开发模式禁用此项，避免把 Electron 开发进程注册为登录项。当前 macOS 包尚未经过 Apple 公证，系统可能限制登录项注册；以设置页读取的实际状态为准。实际注销／登录流程仍需真机验证。参见 [Electron 登录项说明](https://www.electronjs.org/docs/latest/api/app#appsetloginitemsettingssettings-macos-windows)。
 
 macOS 截图监控读取桌面及系统配置的截图保存目录，在应用运行时收集新生成、符合截图文件名规则的图片，等待文件写入稳定后再导入。它不是对所有文件夹的图片扫描，也不会自动导入启动前的旧截图。原始截图文件保持原样；应用内保存的是独立图片副本。
 
@@ -143,6 +146,7 @@ G-paster 无需账户或云端服务，不向外部服务上传剪贴板内容�
 | `npm run test:images:electron` | 在真实 Electron 中验证图片解码、存储、缩略图和截图导入（隔离数据，不修改系统剪贴板） |
 | `npm run test:images:app` | 用隔离数据和可控剪贴板输入，验证实际主进程、preload、UI、错误恢复与清空竞态 |
 | `npm run test:system:app` | 用隔离数据验证中英文、浅深色、原生菜单和未保存输入保留（不修改系统设置） |
+| `npm run test:settings:app` | 验证窗口开关、设置入口、快捷键录入与冲突回退；使用隔离数据和受控系统接口，不修改系统登录项 |
 | `npm run build` | 编译 Electron 主进程并构建前端 |
 | `npm run package:mac` | 生成 macOS arm64 应用 |
 
@@ -172,6 +176,6 @@ scripts/                开发启动及 macOS 后台应用配置
 
 [反馈问题](https://github.com/Gerahamu/G-paster/issues) · [浏览源码](https://github.com/Gerahamu/G-paster)
 
-<sub>当前版本 0.1.2 · macOS arm64 优先 · 仓库尚未添加开源许可证</sub>
+<sub>当前版本 0.1.3 · macOS arm64 优先 · 仓库尚未添加开源许可证</sub>
 
 </div>

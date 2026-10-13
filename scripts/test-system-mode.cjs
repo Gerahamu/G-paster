@@ -76,7 +76,8 @@ app.whenReady().then(async () => {
     const labels = await evaluate('Array.from(document.querySelectorAll(".module-tab > span:first-of-type")).map(e => e.textContent)');
     assert.deepEqual(labels, lang === 'en' ? ['Clipboard', 'Phrases', 'Screenshots'] : ['剪贴板', '常用语', '截图']);
     assert.equal(menu.items[0].label, lang === 'en' ? 'Open G-paster' : '打开 G-paster');
-    assert.equal(menu.items[2].label, lang === 'en' ? 'Quit G-paster' : '退出 G-paster');
+    assert.equal(menu.items[1].label, lang === 'en' ? 'Settings' : '设置');
+    assert.equal(menu.items[3].label, lang === 'en' ? 'Quit G-paster' : '退出 G-paster');
     assert.equal(await evaluate('Array.from(document.querySelectorAll(".entry-preview")).some(e => e.textContent === "保存")'), true);
     assert.equal(await evaluate('Array.from(document.querySelectorAll(".module-tab")).every(b => Array.from(b.children).every(c => c.getBoundingClientRect().right <= b.getBoundingClientRect().right + 1))'), true);
     assert.equal(await evaluate('getComputedStyle(document.querySelector(".gpaster-brand-image")).filter'), dark ? 'brightness(0) invert(1)' : 'none');

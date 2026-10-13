@@ -10,6 +10,7 @@ import {
   nativeImage,
   nativeTheme,
   screen,
+  shell,
   Tray,
   type IpcMainEvent,
   type IpcMainInvokeEvent
@@ -19,9 +20,10 @@ import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { CaptureIssue, ClipboardHistoryItem, QuickPhraseDraft, QuickPhraseUpdate, SystemSettings } from "../src/shared/contracts";
-import { HistoryStore } from "./history-store";
-import { ImageStore, type StoredImage } from "./image-store";
+import type { AppPreferences, CaptureIssue, ClipboardHistoryItem, QuickPhraseDraft, QuickPhraseUpdate, SystemSettings } from "../src/shared/contracts";
+import { HistoryStore, MAX_HISTORY_ENTRIES } from "./history-store";
+import { ImageStore, MAX_CLIPBOARD_IMAGES, type StoredImage } from "./image-store";
+import { Preferences } from "./preferences";
 import { PhraseStore } from "./phrase-store";
 import { getMacScreenshotDirectories, ScreenshotMonitor } from "./screenshot-monitor";
 import { getDevServerOrigin, isTrustedPageUrl, type TrustedOriginPolicy } from "./trusted-origin";
@@ -55,6 +57,33 @@ let historyPublishGeneration = 0;
 const imagePreviewCache = new Map<string, { hash: string; dataUrl: string }>();
 const captureIssues = new Map<CaptureIssue["source"], CaptureIssue>();
 let currentSystemSettings: SystemSettings | null = null;
+let preferences: Preferences;
+let isShortcutRecording = false;
+
+function loginItemOptions(): Electron.LoginItemSettingsOptions {
+  return process.platform === "win32" ? { path: process.execPath, args: ["--gpaster-background"] } : {};
+}
+
+function setShortcutRecording(recording: boolean): void {
+  isShortcutRecording = recording;
+  globalShortcut.setSuspended(recording);
+}
+
+function readPreferences(): AppPreferences {
+  const loginSupported = app.isPackaged && (process.platform === "darwin" || process.platform === "win32");
+  let loginStatus: AppPreferences["loginStatus"] = loginSupported ? "disabled" : "unavailable";
+  let openAtLogin = false;
+  if (loginSupported) {
+    try {
+      const login = app.getLoginItemSettings(loginItemOptions());
+      openAtLogin = login.openAtLogin;
+      loginStatus = login.status === "requires-approval" ? "requires-approval" : openAtLogin ? "enabled" : "disabled";
+    } catch { loginStatus = "unavailable"; }
+  }
+  return { shortcut: preferences.shortcut, defaultShortcut: preferences.defaultShortcut, shortcutRegistered: preferences.registered,
+    loginSupported, openAtLogin, loginStatus,
+    version: app.getVersion(), textLimit: MAX_HISTORY_ENTRIES, imageLimit: MAX_CLIPBOARD_IMAGES };
+}
 
 function refreshSystemSettings(): SystemSettings {
   const next = readSystemSettings();
@@ -120,7 +149,48 @@ function showWindow(): void {
 }
 
 function hideWindow(): void {
+  setShortcutRecording(false);
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
+}
+
+function toggleWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed() || isNativeDialogOpen || isShortcutRecording) return;
+  if (mainWindow.isVisible()) hideWindow(); else showWindow();
+}
+
+function openSettings(): void {
+  showWindow();
+  mainWindow?.webContents.send("settings:open");
+}
+
+function registerPreferencesIpc(): void {
+  ipcMain.handle("preferences:get", event => { assertTrustedWindow(event); return readPreferences(); });
+  ipcMain.handle("preferences:shortcut", async (event, shortcut: unknown) => {
+    assertTrustedWindow(event);
+    setShortcutRecording(false);
+    const error = await preferences.setShortcut(shortcut);
+    return { settings: readPreferences(), error };
+  });
+  ipcMain.handle("preferences:recording", (event, recording: unknown) => {
+    assertTrustedWindow(event);
+    if (typeof recording !== "boolean" || (recording && !mainWindow?.isVisible())) throw new Error("Invalid recording state");
+    setShortcutRecording(recording);
+  });
+  ipcMain.handle("preferences:login", (event, enabled: unknown) => {
+    assertTrustedWindow(event);
+    if (typeof enabled !== "boolean" || !readPreferences().loginSupported) return { settings: readPreferences(), error: "login-unavailable" };
+    if (readPreferences().loginStatus === "unavailable") return { settings: readPreferences(), error: "login-failed" };
+    try {
+      app.setLoginItemSettings({ openAtLogin: enabled, ...loginItemOptions() });
+      const settings = readPreferences();
+      return { settings, error: settings.openAtLogin === enabled || (enabled && settings.loginStatus === "requires-approval") ? null : "login-failed" };
+    } catch { return { settings: readPreferences(), error: "login-failed" }; }
+  });
+  ipcMain.handle("preferences:open-data", async event => {
+    assertTrustedWindow(event);
+    // Only the fixed application data directory can be opened via this IPC.
+    return (await shell.openPath(app.getPath("userData"))) === "";
+  });
 }
 
 async function showImageSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> {
@@ -381,6 +451,7 @@ function updateTrayMenu(): void {
   if (!tray || tray.isDestroyed()) return;
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: nativeText("打开 G-paster"), click: showWindow },
+    { label: nativeText("设置"), click: openSettings },
     { type: "separator" },
     { label: nativeText("退出 G-paster"), click: () => { isQuitting = true; app.quit(); } }
   ]));
@@ -441,6 +512,8 @@ function createWindow(): void {
     });
   }
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  mainWindow.webContents.on("render-process-gone", () => setShortcutRecording(false));
+  mainWindow.webContents.on("did-start-navigation", () => setShortcutRecording(false));
 
   const policy = getTrustedPolicy();
   mainWindow.webContents.on("will-navigate", (event, url) => {
@@ -468,7 +541,13 @@ function createWindow(): void {
   } else {
     void mainWindow.loadFile(join(app.getAppPath(), "dist", "index.html"));
   }
-  mainWindow.once("ready-to-show", showWindow);
+  mainWindow.once("ready-to-show", () => {
+    let loginLaunch = app.isPackaged && process.argv.includes("--gpaster-background");
+    if (process.platform === "darwin" && app.isPackaged) {
+      try { loginLaunch ||= app.getLoginItemSettings().wasOpenedAtLogin; } catch { /* Show normally if OS query fails. */ }
+    }
+    if (!loginLaunch) showWindow();
+  });
 }
 
 async function pollClipboardImage(): Promise<void> {
@@ -527,9 +606,9 @@ async function pollClipboard(): Promise<void> {
 }
 
 function registerGlobalShortcut(): void {
-  const registered = globalShortcut.register(GLOBAL_SHORTCUT, showWindow);
-  console.info("G-paster global shortcut registered:", registered, GLOBAL_SHORTCUT);
-  if (!registered) console.warn("G-paster could not register its global shortcut:", GLOBAL_SHORTCUT);
+  const registered = preferences.register();
+  console.info("G-paster global shortcut registered:", registered, preferences.shortcut);
+  if (!registered) console.warn("G-paster could not register its global shortcut:", preferences.shortcut);
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -540,6 +619,8 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     refreshSystemSettings();
     const userData = app.getPath("userData");
+    preferences = new Preferences(join(userData, "preferences.json"), GLOBAL_SHORTCUT, process.platform, globalShortcut, toggleWindow);
+    await preferences.load();
     historyStore = new HistoryStore(join(userData, "history.json"));
     imageStore = new ImageStore(join(userData, "image-history.json"));
     phraseStore = new PhraseStore(join(userData, "phrases.json"));
@@ -559,6 +640,7 @@ if (!app.requestSingleInstanceLock()) {
     registerHistoryIpc();
     registerPhraseIpc();
     registerWindowIpc();
+    registerPreferencesIpc();
     createTray();
     createWindow();
     registerGlobalShortcut();
@@ -586,6 +668,7 @@ if (!app.requestSingleInstanceLock()) {
     app.on("activate", showWindow);
     app.on("before-quit", () => {
       isQuitting = true;
+      setShortcutRecording(false);
       screenshotMonitor?.stop();
       globalShortcut.unregisterAll();
     });
