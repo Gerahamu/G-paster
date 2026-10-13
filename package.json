@@ -1,6 +1,6 @@
 {
   "name": "gpaster",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "productName": "G-paster",
   "private": true,
   "description": "A focused desktop clipboard history for macOS and Windows.",
@@ -18,7 +18,8 @@
     "test:images:electron": "npm run build:main && electron scripts/test-image-runtime.cjs",
     "test:images:app": "npm run build && electron scripts/test-app-images.cjs",
     "test:system:app": "npm run build && electron scripts/test-system-mode.cjs",
-    "test:settings:app": "npm run build && electron scripts/test-settings-app.cjs"
+    "test:settings:app": "npm run build && electron scripts/test-settings-app.cjs",
+    "test:design:app": "npm run build && electron scripts/test-panel-design.cjs"
   },
   "dependencies": {
     "react": "^19.3.0",

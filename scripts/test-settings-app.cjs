@@ -84,7 +84,7 @@ app.whenReady().then(async () => {
   toggle();
   await evaluate('document.querySelector(".settings-entry").click()');
   await waitFor(() => evaluate('Boolean(document.querySelector(".settings-switch"))'), 'settings loaded');
-  await waitFor(() => window.getSize()[1] === 460, 'settings normal height');
+  await waitFor(() => window.getSize()[1] === 500, 'redesigned settings normal height');
   assert.equal(await evaluate('document.querySelectorAll(".settings-section").length'), 3);
   assert.equal(await evaluate('document.querySelector(".settings-switch").disabled'), !app.isPackaged);
   assert.equal((await evaluate('window.gpaster.getPreferences()')).appearance, 'system');

@@ -247,7 +247,9 @@ async function toHistoryImage(image: StoredImage): Promise<ClipboardHistoryItem 
     if (!bytes) return null;
     const decoded = nativeImage.createFromBuffer(bytes);
     if (decoded.isEmpty()) return null;
-    cached = { hash: image.hash, dataUrl: decoded.resize({ width: 180, height: 110, quality: "good" }).toDataURL() };
+    const size = decoded.getSize();
+    const scale = Math.min(1040 / size.width, 600 / size.height, 1);
+    cached = { hash: image.hash, dataUrl: decoded.resize({ width: Math.max(1, Math.round(size.width * scale)), height: Math.max(1, Math.round(size.height * scale)), quality: "good" }).toDataURL() };
     imagePreviewCache.set(image.id, cached);
   }
   return {
@@ -456,7 +458,7 @@ function registerWindowIpc(): void {
 
     try {
       const [width, height] = mainWindow.getSize();
-      const targetHeight = compact ? 340 : 460;
+      const targetHeight = compact ? 340 : 500;
       if (height !== targetHeight) mainWindow.setSize(width, targetHeight, true);
     } catch {
       // Safely reject invalid window calls without throwing in main process
@@ -497,9 +499,9 @@ function createTray(): void {
 function createWindow(): void {
   const preloadPath = join(__dirname, "preload.js");
   const windowOptions: Electron.BrowserWindowConstructorOptions = {
-    width: 400,
-    height: 460,
-    minWidth: 400,
+    width: 840,
+    height: 500,
+    minWidth: 600,
     minHeight: 340,
     show: false,
     title: APP_NAME,
@@ -518,7 +520,7 @@ function createWindow(): void {
   };
   if (process.platform === "darwin") {
     windowOptions.titleBarStyle = "hiddenInset";
-    windowOptions.trafficLightPosition = { x: 12, y: 13 };
+    windowOptions.trafficLightPosition = { x: 20, y: 25 };
   }
 
   mainWindow = new BrowserWindow(windowOptions);

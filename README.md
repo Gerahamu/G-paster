@@ -6,9 +6,9 @@
 
 **把复制过的内容，变成随时可用的下一步。**
 
-一个常驻 macOS 菜单栏的轻量剪贴板工具。<br />剪贴板、常用语、截图中转站，在一个紧凑面板里接着用。
+一个常驻 macOS 菜单栏的轻量剪贴板工具。<br />剪贴板、常用语、截图中转站，在一个横向面板里接着用。
 
-![版本 0.1.4](https://img.shields.io/badge/version-0.1.4-355de7?style=flat-square&labelColor=202a38) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-8691a1?style=flat-square&labelColor=202a38) ![本地存储](https://img.shields.io/badge/data-local%20only-579a86?style=flat-square&labelColor=202a38)
+![版本 0.1.5](https://img.shields.io/badge/version-0.1.5-355de7?style=flat-square&labelColor=202a38) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-8691a1?style=flat-square&labelColor=202a38) ![本地存储](https://img.shields.io/badge/data-local%20only-579a86?style=flat-square&labelColor=202a38)
 
 [认识 G-paster](#三个模块一个面板) · [开始使用](#开始使用) · [数据与隐私](#数据留在你的电脑上) · [参与开发](#开发与构建)
 
@@ -39,7 +39,7 @@
 - **住在菜单栏。** macOS 上后台运行，默认不占据 Dock；点击菜单栏图标即可打开。
 - **按习惯设置。** 标题栏齿轮和菜单栏「设置」提供快捷键录入、恢复默认、开机启动及本地存储说明。支持中文／英文／跟随系统，浅色／深色／跟随系统，以及文本和图片保留数量编辑。修改保存到本机，快捷键和外观即时生效。
 - **跟随系统。** 语言和外观默认跟随系统，也可以在设置中手动选择；时间格式仍跟随系统区域。系统语言模式下，中文系统使用中文，其余语言使用英文。修改系统语言后，如 macOS 提示重启应用，请按提示重新启动。
-- **一个紧凑面板。** 默认 400 × 460 px，空记录状态约 400 × 340 px；点击窗口外部或关闭窗口后继续在后台运行。
+- **一个紧凑面板。** 默认 840 × 500 px，空记录状态约 840 × 340 px；支持缩窄至 600 px；点击窗口外部或关闭窗口后继续在后台运行。
 - **复制 → 搜索 → 再复制 → 粘贴。** 在面板里找到内容并重新复制，回到目标应用使用正常的粘贴操作。
 
 | 操作 | macOS | 说明 |
@@ -149,6 +149,7 @@ G-paster 无需账户或云端服务，不向外部服务上传剪贴板内容�
 | `npm run test:images:app` | 用隔离数据和可控剪贴板输入，验证实际主进程、preload、UI、错误恢复与清空竞态 |
 | `npm run test:system:app` | 用隔离数据验证中英文、浅深色、原生菜单和未保存输入保留（不修改系统设置） |
 | `npm run test:settings:app` | 验证窗口开关、设置入口、快捷键录入与冲突回退；使用隔离数据和受控系统接口，不修改系统登录项 |
+| `npm run test:design:app` | 使用生成的隔离样例检查横向布局、双列截图、缩略图比例、键盘操作和窄窗口布局 |
 | `npm run build` | 编译 Electron 主进程并构建前端 |
 | `npm run package:mac` | 生成 macOS arm64 应用 |
 
@@ -178,6 +179,6 @@ scripts/                开发启动及 macOS 后台应用配置
 
 [反馈问题](https://github.com/Gerahamu/G-paster/issues) · [浏览源码](https://github.com/Gerahamu/G-paster)
 
-<sub>当前版本 0.1.4 · macOS arm64 优先 · 仓库尚未添加开源许可证</sub>
+<sub>当前版本 0.1.5 · macOS arm64 优先 · 仓库尚未添加开源许可证</sub>
 
 </div>

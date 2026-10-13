@@ -1,6 +1,7 @@
 export type UiLanguage = "zh" | "en";
 
 const english = {
+  "搜索文字、链接或图片尺寸…": "Search text, links or image dimensions…",
   "偏好设置": "Preferences", "浅色": "Light", "深色": "Dark",
   "放弃未保存的数量修改？": "Discard unsaved limit changes?",
   "设置已保存。": "Settings saved.", "数量已保存，下次收集或启动时按新上限清理。": "Limits saved. Applied on the next capture or launch.",

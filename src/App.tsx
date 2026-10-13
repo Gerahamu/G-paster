@@ -292,23 +292,23 @@ function App() {
     setShowSettings(false);
     window.setTimeout(() => searchRef.current?.focus(), 0);
   }
-  const searchPlaceholderKey = activeModule === "history" ? "搜索剪贴板内容" : activeModule === "phrases" ? "搜索常用语或分类" : "搜索图片尺寸";
+  const searchPlaceholderKey = activeModule === "history" ? "搜索文字、链接或图片尺寸…" : activeModule === "phrases" ? "搜索常用语或分类" : "搜索图片尺寸";
 
   const searchPlaceholder = t(searchPlaceholderKey);
 
   return (
     <main className={"app-shell" + (isMac ? " platform-mac" : "")}>
       <header className="app-header">
-        <div className="brand-lockup"><span className="brand-name">G-paster</span></div>
-        <div className="header-actions"><button className="settings-entry" type="button" disabled={!!editor || !!preview} onClick={() => showSettings ? closeSettings() : setShowSettings(true)} aria-label={t("设置")} title={t("设置")} aria-pressed={showSettings}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden="true"><path d="m9 3-1 3-3 1-1 3 2 2-1 3 2 2 3-1 2 2 3-1 1-3 3-1 1-3-2-2 1-3-2-2-3 1-2-2Z" /><circle cx="12" cy="12" r="3" /></svg></button><span className="brand-mark"><BrandIcon size={20} /></span></div>
-      </header>
-
-      {showSettings ? <SettingsPanel system={settings} onBack={closeSettings} onDirtyChange={dirty => { settingsDirty.current = dirty; }} /> : <section className="workspace" aria-label={t("G-paster 工作区")}>
-        <div className="search-wrap">
+        <span className="brand-mark" title="G-paster"><BrandIcon size={28} /></span>
+        {showSettings ? <span className="settings-window-label">G-paster</span> : <div className="search-wrap">
           <Icon name="search" size={16} />
           <input ref={searchRef} aria-label={searchPlaceholder} autoFocus autoComplete="off" onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder} value={query} />
           {query ? <button className="clear-search" type="button" aria-label={t("清除搜索")} onClick={() => { setQuery(""); searchRef.current?.focus(); }}><Icon name="close" size={14} /></button> : <kbd>{isMac ? "⌘ F" : "Ctrl F"}</kbd>}
-        </div>
+        </div>}
+        <div className="header-actions"><button className="settings-entry" type="button" disabled={!!editor || !!preview} onClick={() => showSettings ? closeSettings() : setShowSettings(true)} aria-label={t("设置")} title={t("设置")} aria-pressed={showSettings}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden="true"><path d="m9 3-1 3-3 1-1 3 2 2-1 3 2 2 3-1 2 2 3-1 1-3 3-1 1-3-2-2 1-3-2-2-3 1-2-2Z" /><circle cx="12" cy="12" r="3" /></svg></button></div>
+      </header>
+
+      {showSettings ? <SettingsPanel system={settings} onBack={closeSettings} onDirtyChange={dirty => { settingsDirty.current = dirty; }} /> : <section className="workspace" aria-label={t("G-paster 工作区")}>
 
         <nav className="module-tabs" aria-label={t("功能模块")}>
           <button className={activeModule === "history" ? "module-tab active" : "module-tab"} onClick={() => selectModule("history")} type="button" aria-pressed={activeModule === "history"}><Icon name="history" size={15} /><span>{t(moduleNames.history)}</span><span className="tab-count">{entries.length}</span></button>
