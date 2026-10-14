@@ -163,7 +163,7 @@ app.whenReady().then(async () => {
   await select('appearance-choice', 'dark');
   await waitFor(() => evaluate('matchMedia("(prefers-color-scheme: dark)").matches'), 'manual dark appearance');
   assert.equal(nativeTheme.themeSource, 'dark');
-  assert.equal(window.getBackgroundColor().toLowerCase().endsWith('171d26'), true);
+  assert.equal(window.getBackgroundColor().toLowerCase().endsWith('171a1f'), true);
   await select('appearance-choice', 'light');
   await waitFor(() => evaluate('!matchMedia("(prefers-color-scheme: dark)").matches'), 'manual light appearance');
   assert.equal(nativeTheme.themeSource, 'light');

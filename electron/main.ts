@@ -103,7 +103,7 @@ function nativeText(key: TranslationKey): string {
 }
 
 function windowBackground(): string {
-  return nativeTheme.shouldUseDarkColors ? "#171d26" : "#f4f6f9";
+  return nativeTheme.shouldUseDarkColors ? "#171a1f" : "#e6ebf2";
 }
 
 function reportCaptureIssue(source: CaptureIssue["source"], message: string | null): void {

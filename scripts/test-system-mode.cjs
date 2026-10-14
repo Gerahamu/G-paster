@@ -71,9 +71,9 @@ app.whenReady().then(async () => {
   for (const lang of ['en', 'zh']) for (const theme of ['light', 'dark']) {
     await setLanguage(lang); nativeTheme.themeSource = theme;
     const dark = theme === 'dark';
-    const background = dark ? 'rgb(23, 29, 38)' : 'rgb(244, 246, 249)';
+    const background = dark ? 'rgb(23, 26, 31)' : 'rgb(230, 235, 242)';
     await waitFor(() => evaluate(`getComputedStyle(document.documentElement).backgroundColor === ${JSON.stringify(background)} && matchMedia('(prefers-color-scheme: dark)').matches === ${dark}`), 'system theme update');
-    await waitFor(() => window.getBackgroundColor().toLowerCase().endsWith(dark ? '171d26' : 'f4f6f9'), 'native window background');
+    await waitFor(() => window.getBackgroundColor().toLowerCase().endsWith(dark ? '171a1f' : 'e6ebf2'), 'native window background');
     const labels = await evaluate('Array.from(document.querySelectorAll(".module-tab > span:first-of-type")).map(e => e.textContent)');
     assert.deepEqual(labels, lang === 'en' ? ['Clipboard', 'Phrases', 'Screenshots'] : ['剪贴板', '常用语', '截图']);
     assert.equal(menu.items[0].label, lang === 'en' ? 'Open G-paster' : '打开 G-paster');
@@ -84,7 +84,7 @@ app.whenReady().then(async () => {
     assert.equal(await evaluate('getComputedStyle(document.querySelector(".gpaster-brand-image")).filter'), dark ? 'brightness(0) invert(1)' : 'none');
     assert.equal(await evaluate('getComputedStyle(document.querySelector(".history-thumb")).filter'), 'none');
     await snapshot(`${lang}-${theme}-history.png`);
-    assert.equal(await evaluate('getComputedStyle(document.querySelector(".module-tab.active")).backgroundColor'), dark ? 'rgb(34, 43, 56)' : 'rgb(255, 255, 255)');
+    assert.equal(await evaluate('getComputedStyle(document.querySelector(".module-tab.active")).backgroundColor'), dark ? 'rgb(32, 35, 43)' : 'rgb(255, 255, 255)');
     console.log(`PASS ${lang}/${theme}: labels, tray, native background, brand contrast, layout and original content`);
   }
   await setLanguage('en'); nativeTheme.themeSource = 'dark';
@@ -131,7 +131,7 @@ app.whenReady().then(async () => {
   await evaluate('document.querySelector(".image-preview-button").click()');
   await waitFor(() => evaluate('Boolean(document.querySelector(".image-dialog"))'), 'image preview');
   assert.equal(await evaluate('document.querySelector(".image-dialog").getAttribute("aria-label")'), 'Image preview');
-  assert.equal(await evaluate('getComputedStyle(document.querySelector(".image-dialog")).backgroundColor'), 'rgb(32, 41, 55)');
+  assert.equal(await evaluate('getComputedStyle(document.querySelector(".image-dialog")).backgroundColor'), 'rgba(27, 30, 31, 0.96)');
   await snapshot('en-dark-preview.png');
   assert.equal(await evaluate('Array.from(document.querySelectorAll("button")).some(b => /[\\u4e00-\\u9fff]/.test(b.textContent))'), false);
   console.log('PASS dark image preview and controls fully localized');

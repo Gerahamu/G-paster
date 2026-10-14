@@ -8,9 +8,9 @@
 
 一个常驻 macOS 菜单栏的轻量剪贴板工具。<br />剪贴板、常用语、截图中转站，在一个紧凑面板里接着用。
 
-![版本 0.1.6](https://img.shields.io/badge/version-0.1.6-355de7?style=flat-square&labelColor=202a38) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-8691a1?style=flat-square&labelColor=202a38) ![本地存储](https://img.shields.io/badge/data-local%20only-579a86?style=flat-square&labelColor=202a38)
+![版本 0.1.7](https://img.shields.io/badge/version-0.1.7-262626?style=flat-square&labelColor=707786) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-707786?style=flat-square&labelColor=20222a) ![本地存储](https://img.shields.io/badge/data-local%20only-707786?style=flat-square&labelColor=20222a)
 
-[下载 macOS App](https://github.com/Gerahamu/G-paster/releases/download/v0.1.6/G-paster-v0.1.6-macos-arm64.zip) · [版本更新](https://github.com/Gerahamu/G-paster/releases/tag/v0.1.6) · [开始使用](#开始使用) · [参与开发](#开发与构建)
+[下载 macOS App](https://github.com/Gerahamu/G-paster/releases/download/v0.1.7/G-paster-v0.1.7-macos-arm64.zip) · [版本更新](https://github.com/Gerahamu/G-paster/releases/tag/v0.1.7) · [开始使用](#开始使用) · [参与开发](#开发与构建)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/readme/hero-dark.png" />
@@ -21,6 +21,20 @@
 <sub>界面示意使用虚构内容，不包含真实剪贴板数据。</sub>
 
 </div>
+
+<br />
+
+## 0.1.7 · 冷白雾银与黑白交互
+
+**延续紧凑面板布局，统一浅色与深色模式的黑白灰视觉层级。** 本次更新聚焦表面材质、边缘、悬停与焦点状态，让界面更接近 macOS 的轻量桌面工具质感。
+
+| 冷白雾银 | 黑白控件 | 深色适配 |
+| :--- | :--- | :--- |
+| 浅色工作区采用冷白、雾银与低对比细边框，并保留内容区域的清晰度。 | 蓝色强调统一为石墨色与中性灰；按钮、链接、选中和键盘焦点仍保持清楚可辨。 | 深色表面、文字、边框与窗口背景同步调整，沿用系统或用户选择的外观。 |
+
+剪贴板、常用语、截图管理、快捷键与本地数据格式保持兼容。
+
+[完整更新记录](CHANGELOG.md) · [0.1.6 图片采集验证范围](docs/release-validation-v0.1.6.md)
 
 <br />
 
@@ -90,7 +104,7 @@ Photo Booth 可能提供旧版 TIFF 与文件引用，而非标准 PNG。0.1.6 �
 
 ### 直接下载
 
-1. 下载 [G-paster v0.1.6 · macOS Apple Silicon](https://github.com/Gerahamu/G-paster/releases/download/v0.1.6/G-paster-v0.1.6-macos-arm64.zip)。
+1. 下载 [G-paster v0.1.7 · macOS Apple Silicon](https://github.com/Gerahamu/G-paster/releases/download/v0.1.7/G-paster-v0.1.7-macos-arm64.zip)。
 2. 解压后将 `G-paster.app` 放入「应用程序」文件夹。更新已有版本时，先从菜单栏退出旧应用，再替换 `.app`。
 3. 打开应用，通过菜单栏图标或 <kbd>Control</kbd> + <kbd>C</kbd> 呼出面板；如快捷键冲突，可在设置中修改。
 
@@ -101,7 +115,7 @@ Photo Booth 可能提供旧版 TIFF 与文件引用，而非标准 PNG。0.1.6 �
 <details>
 <summary><strong>校验下载文件</strong></summary>
 
-从同一 [Release](https://github.com/Gerahamu/G-paster/releases/tag/v0.1.6) 下载 `SHA256SUMS.txt`，与压缩包放在同一文件夹，再执行：
+从同一 [Release](https://github.com/Gerahamu/G-paster/releases/tag/v0.1.7) 下载 `SHA256SUMS.txt`，与压缩包放在同一文件夹，再执行：
 
 ```bash
 shasum -a 256 -c SHA256SUMS.txt
@@ -221,6 +235,6 @@ scripts/                开发启动及 macOS 后台应用配置
 
 [反馈问题](https://github.com/Gerahamu/G-paster/issues) · [浏览源码](https://github.com/Gerahamu/G-paster)
 
-<sub>当前版本 0.1.6 · macOS arm64 发布包 · 仓库尚未添加开源许可证</sub>
+<sub>当前版本 0.1.7 · macOS arm64 发布包 · 仓库尚未添加开源许可证</sub>
 
 </div>

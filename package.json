@@ -1,6 +1,6 @@
 {
   "name": "gpaster",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "productName": "G-paster",
   "private": true,
   "description": "A focused desktop clipboard history for macOS and Windows.",
