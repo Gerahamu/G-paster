@@ -30,6 +30,7 @@ globalShortcut.unregister = key => bindings.delete(key);
 globalShortcut.unregisterAll = () => bindings.clear();
 globalShortcut.setSuspended = value => { suspended = value; };
 clipboard.read = async () => items; clipboard.readText = async () => text;
+clipboard.has = async type => items.some(item => item.types.includes(type));
 clipboard.writeText = async value => { text = value; };
 let login = { openAtLogin: false, wasOpenedAtLogin: process.env.GPASTER_TEST_LOGIN_LAUNCH === '1', status: 'not-registered' }, loginFailure = false, approval = false;
 app.getLoginItemSettings = () => login;
@@ -103,7 +104,7 @@ app.whenReady().then(async () => {
   await record('G', ['control', 'shift']);
   await waitFor(async () => (await evaluate('window.gpaster.getPreferences()')).shortcut === 'Control+Shift+G', 'new shortcut');
   assert.equal(bindings.has('Control+C'), false); assert.equal(bindings.has('Control+Shift+G'), true);
-  assert.deepEqual(JSON.parse(await readFile(join(data, 'preferences.json'), 'utf8')), [{ shortcut: 'Control+Shift+G', language: 'system', appearance: 'system', textLimit: 300, imageLimit: 10 }]);
+  assert.deepEqual(JSON.parse(await readFile(join(data, 'preferences.json'), 'utf8')), [{ shortcut: 'Control+Shift+G', language: 'system', appearance: 'system', textLimit: 300, imageLimit: 10, saveFileCopies: false }]);
   toggle(); assert.equal(window.isVisible(), false); toggle(); assert.equal(window.isVisible(), true);
   await waitFor(() => evaluate('Boolean(document.querySelector(".module-tabs"))'), 'normal panel on reopen');
   menu.items[1].click();
@@ -148,6 +149,13 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate('window.gpaster.openDataDirectory()'), true); assert.equal(openedPath, data);
   assert.equal((await evaluate('window.gpaster.getPreferences()')).imageLimit, 10);
   assert.equal((await evaluate('window.gpaster.getPreferences()')).textLimit, 300);
+  assert.equal((await evaluate('window.gpaster.getPreferences()')).saveFileCopies, false);
+  await evaluate('document.querySelectorAll(".settings-switch")[1].click()');
+  await waitFor(async () => (await evaluate('window.gpaster.getPreferences()')).saveFileCopies && await evaluate('!document.querySelectorAll(".settings-switch")[1].disabled'), 'file copy option enabled');
+  assert.equal(JSON.parse(await readFile(join(data, 'preferences.json'), 'utf8'))[0].saveFileCopies, true);
+  await evaluate('document.querySelectorAll(".settings-switch")[1].click()');
+  await waitFor(async () => !(await evaluate('window.gpaster.getPreferences()')).saveFileCopies && await evaluate('!document.querySelectorAll(".settings-switch")[1].disabled'), 'file copy option disabled');
+  console.log('PASS file copy setting defaults off, toggles through UI and persists');
   const input = async (id, value) => evaluate(`{ const field = document.getElementById(${JSON.stringify(id)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(field, ${JSON.stringify(value)}); field.dispatchEvent(new Event('input', {bubbles:true})); }`);
   const select = async (id, value) => {
     await evaluate(`{ const field = document.getElementById(${JSON.stringify(id)}); field.value = ${JSON.stringify(value)}; field.dispatchEvent(new Event('change', {bubbles:true})); }`);

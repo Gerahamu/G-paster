@@ -28,7 +28,9 @@ import { PhraseStore } from "./phrase-store";
 import { getMacScreenshotDirectories, ScreenshotMonitor } from "./screenshot-monitor";
 import { getDevServerOrigin, isTrustedPageUrl, type TrustedOriginPolicy } from "./trusted-origin";
 import { decodeImageBuffer } from "./image-codec";
-import { readClipboardImages } from "./clipboard-images";
+import { readClipboardItems, readImageItems } from "./clipboard-images";
+import { fileReferenceKey, fileUriList, isFileClipboardType, NATIVE_FILE_URL, readFileItems } from "./clipboard-files";
+import { FileStore, type StoredFileEntry } from "./file-store";
 import { readImageFile } from "./image-limits";
 import { readSystemSettings } from "./system-settings";
 import { translate, type TranslationKey } from "../src/shared/i18n";
@@ -43,11 +45,14 @@ let tray: Tray | null = null;
 let historyStore: HistoryStore;
 let imageStore: ImageStore;
 let phraseStore: PhraseStore;
+let fileStore: FileStore;
 let screenshotMonitor: ScreenshotMonitor | null = null;
 let lastClipboardText = "";
 let nextTextPollAt = 0;
 let nextImagePollAt = 0;
 let lastClipboardImageHash = "";
+let lastClipboardFileKey = "";
+let historyLimitQueue: Promise<void> = Promise.resolve();
 let isQuitting = false;
 let isNativeDialogOpen = false;
 let isPolling = false;
@@ -266,13 +271,35 @@ async function toHistoryImage(image: StoredImage): Promise<ClipboardHistoryItem 
 }
 
 async function listCombinedHistory(): Promise<ClipboardHistoryItem[]> {
-  const [textEntries, images] = await Promise.all([historyStore.list(), imageStore.list()]);
+  const [textEntries, images, files] = await Promise.all([historyStore.list(), imageStore.list(), fileStore.listHistory()]);
   const currentImageIds = new Set(images.map((image) => image.id));
   for (const id of imagePreviewCache.keys()) if (!currentImageIds.has(id)) imagePreviewCache.delete(id);
   const imageEntries = (await Promise.all(images.map(toHistoryImage))).filter(
     (entry): entry is ClipboardHistoryItem => entry !== null
   );
-  return [...textEntries, ...imageEntries].sort((left, right) => right.copiedAt - left.copiedAt);
+  return [...textEntries, ...imageEntries, ...files].sort((left, right) => right.copiedAt - left.copiedAt);
+}
+
+function trimNonImageHistory(): Promise<void> {
+  const operation = historyLimitQueue.then(async () => {
+    const [text, files] = await Promise.all([historyStore.list(), fileStore.list()]);
+    const expired = [...text, ...files].sort((a, b) => b.copiedAt - a.copiedAt).slice(preferences.options.textLimit);
+    await Promise.all([historyStore.deleteMany(expired.filter(entry => entry.kind !== "file").map(entry => entry.id)),
+      fileStore.deleteMany(expired.filter(entry => entry.kind === "file").map(entry => entry.id))]);
+  });
+  historyLimitQueue = operation.catch(() => undefined);
+  return operation;
+}
+
+function savePendingFileCopy(entry: StoredFileEntry): void {
+  if (entry.copyState !== "pending") return;
+  void fileStore.saveCopies(entry.id).then(async result => {
+    if (!result) return;
+    reportCaptureIssue("clipboard-file", result.copyState === "limit"
+      ? "文件副本超过容量保护限制，仅保留原始引用（单批 100 MB，总副本 500 MB）。"
+      : result.copyState === "failed" ? "文件副本保存失败，仅保留原始引用。请检查文件权限及磁盘空间。" : null);
+    await publishHistory();
+  }).catch(() => reportCaptureIssue("clipboard-file", "文件副本保存失败，仅保留原始引用。请检查文件权限及磁盘空间。"));
 }
 
 async function publishHistory(): Promise<void> {
@@ -281,10 +308,6 @@ async function publishHistory(): Promise<void> {
   if (generation === historyPublishGeneration && mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("history:changed", entries);
   }
-}
-
-async function readClipboardImage(): Promise<{ buffer?: Buffer; width?: number; height?: number; hash: string } | null> {
-  return readClipboardImages(() => clipboard.read(), lastClipboardImageHash, decodeImageBuffer);
 }
 
 async function updateClipboard<T>(operation: () => Promise<T>): Promise<T> {
@@ -322,8 +345,9 @@ function registerHistoryIpc(): void {
     if (typeof id !== "string" || id.length > 100) return false;
     const deletedText = await historyStore.delete(id);
     const deletedImage = deletedText ? false : await imageStore.delete(id);
-    if (deletedText || deletedImage) await publishHistory();
-    return deletedText || deletedImage;
+    const deletedFile = deletedText || deletedImage ? false : await fileStore.deleteMany([id]);
+    if (deletedText || deletedImage || deletedFile) await publishHistory();
+    return deletedText || deletedImage || deletedFile;
   });
 
   ipcMain.handle("history:clear", async (event) => {
@@ -332,11 +356,18 @@ function registerHistoryIpc(): void {
     imageCaptureGeneration++;
     imageCapturePauseDepth++;
     try {
-      const results = await Promise.allSettled([historyStore.clear(), imageStore.clear()]);
-      try { lastClipboardImageHash = (await readClipboardImage())?.hash ?? ""; }
-      catch { lastClipboardImageHash = ""; }
-      try { rememberClipboardText(await clipboard.readText()); }
+      const results = await Promise.allSettled([historyStore.clear(), imageStore.clear(), fileStore.clear()]);
+      let hasFileRepresentation = false;
+      try {
+        const items = await readClipboardItems(() => clipboard.read());
+        hasFileRepresentation = items.some(item => item.types.some(isFileClipboardType));
+        const files = await readFileItems(items);
+        lastClipboardFileKey = files?.key ?? "";
+        lastClipboardImageHash = files ? "" : (await readImageItems(items, lastClipboardImageHash, decodeImageBuffer))?.hash ?? "";
+      } catch { lastClipboardImageHash = ""; lastClipboardFileKey = ""; }
+      try { rememberClipboardText(hasFileRepresentation ? "" : await clipboard.readText()); }
       catch { lastClipboardText = ""; }
+      reportCaptureIssue("clipboard-file", null);
       await publishHistory();
       if (results.some((result) => result.status === "rejected")) {
         throw new Error("部分记录未能清空，请检查后重试。");
@@ -352,12 +383,30 @@ function registerHistoryIpc(): void {
       return updateClipboard(async () => {
         await clipboard.writeText(entry.content);
         await historyStore.recordClipboardText(entry.content);
+        await trimNonImageHistory();
         rememberClipboardText(entry.content);
         lastClipboardImageHash = "";
+        lastClipboardFileKey = "";
         clearImageCaptureIssue();
         await publishHistory();
         hideWindow();
         return true;
+      });
+    }
+
+    const file = await fileStore.get(id);
+    if (file) {
+      const paths = await fileStore.resolvePaths(id);
+      if (!paths) { await publishHistory(); return false; }
+      return updateClipboard(async () => {
+        await clipboard.write([new ClipboardItem({ "text/uri-list": fileUriList(paths) })]);
+        await fileStore.touch(id);
+        await trimNonImageHistory();
+        rememberClipboardText("");
+        lastClipboardFileKey = fileReferenceKey(paths);
+        lastClipboardImageHash = "";
+        clearImageCaptureIssue(); reportCaptureIssue("clipboard-file", null);
+        await publishHistory(); hideWindow(); return true;
       });
     }
 
@@ -369,6 +418,7 @@ function registerHistoryIpc(): void {
       await imageStore.record(bytes, image.width, image.height);
       rememberClipboardText("");
       lastClipboardImageHash = createHash("sha256").update(bytes).digest("hex");
+      lastClipboardFileKey = "";
       clearImageCaptureIssue();
       await publishHistory();
       hideWindow();
@@ -449,8 +499,10 @@ function registerPhraseIpc(): void {
     return updateClipboard(async () => {
       await clipboard.writeText(phrase.text);
       await historyStore.recordClipboardText(phrase.text);
+      await trimNonImageHistory();
       rememberClipboardText(phrase.text);
       lastClipboardImageHash = "";
+      lastClipboardFileKey = "";
       clearImageCaptureIssue();
       await publishHistory();
       hideWindow();
@@ -602,8 +654,29 @@ async function pollClipboardImage(): Promise<void> {
   const writeGeneration = clipboardWriteGeneration;
   const isCurrent = () => generation === imageCaptureGeneration && writeGeneration === clipboardWriteGeneration;
   const copiedAt = Date.now();
+  let capturingFiles = false;
   try {
-    const currentImage = await readClipboardImage();
+    const items = await readClipboardItems(() => clipboard.read());
+    capturingFiles = items.some(item => item.types.some(isFileClipboardType));
+    const files = await readFileItems(items);
+    if (!isCurrent()) return;
+    if (files) {
+      lastClipboardImageHash = "";
+      reportCaptureIssue("clipboard-image", null);
+      if (files.key !== lastClipboardFileKey) {
+        const entry = await fileStore.record(files.paths, preferences.options.saveFileCopies, copiedAt);
+        if (!isCurrent()) return;
+        lastClipboardFileKey = files.key;
+        await trimNonImageHistory();
+        reportCaptureIssue("clipboard-file", null);
+        await publishHistory();
+        savePendingFileCopy(entry);
+      }
+      return;
+    }
+    lastClipboardFileKey = "";
+    reportCaptureIssue("clipboard-file", null);
+    const currentImage = await readImageItems(items, lastClipboardImageHash, decodeImageBuffer);
     if (!isCurrent()) return;
     if (currentImage?.buffer && currentImage.width && currentImage.height) {
       await imageStore.record(currentImage.buffer, currentImage.width, currentImage.height, copiedAt);
@@ -616,8 +689,14 @@ async function pollClipboardImage(): Promise<void> {
     reportCaptureIssue("clipboard-image", null);
   } catch (error) {
     if (!isCurrent()) return;
-    console.error("Could not save clipboard image:", error);
+    console.error(capturingFiles ? "Could not save clipboard files:" : "Could not save clipboard image:", error);
     nextImagePollAt = Date.now() + 3_000;
+    if (capturingFiles) {
+      const known = ["无法读取剪贴板文件引用，请重新复制文件。", "一次最多收集 1000 个文件或文件夹，请分批复制。", "文件引用已失效，请从原始位置重新复制。"];
+      reportCaptureIssue("clipboard-file", error instanceof Error && known.includes(error.message)
+        ? error.message : "文件引用读取或保存失败，请检查文件权限及本地存储空间。");
+      return;
+    }
     reportCaptureIssue("clipboard-image", error instanceof Error && (error.message.startsWith("剪贴板") || error.message.startsWith("无法读取剪贴板"))
       ? error.message : "剪贴板图片读取或保存失败，请检查系统剪贴板权限及应用数据目录。稍后会自动重试。");
   } finally {
@@ -634,11 +713,14 @@ async function pollClipboard(): Promise<void> {
     let changed = false;
     if (Date.now() >= nextTextPollAt) {
       try {
-        const currentText = await clipboard.readText();
+        const [currentText, hasFiles, hasNativeFiles] = await Promise.all([
+          clipboard.readText(), clipboard.has("text/uri-list"), clipboard.has(NATIVE_FILE_URL)
+        ]);
+        if (hasFiles || hasNativeFiles) { rememberClipboardText(""); return; }
         if (currentText !== lastClipboardText) {
           if (currentText.length <= MAX_CLIPBOARD_TEXT_LENGTH) {
             const entry = await historyStore.recordClipboardText(currentText);
-            if (entry) changed = true;
+            if (entry) { await trimNonImageHistory(); changed = true; }
           }
           rememberClipboardText(currentText);
         }
@@ -675,7 +757,9 @@ if (!app.requestSingleInstanceLock()) {
     historyStore = new HistoryStore(join(userData, "history.json"), preferences.options.textLimit);
     imageStore = new ImageStore(join(userData, "image-history.json"), preferences.options.imageLimit);
     phraseStore = new PhraseStore(join(userData, "phrases.json"));
-    await Promise.all([historyStore.list(), imageStore.list(), phraseStore.list()]);
+    fileStore = new FileStore(join(userData, "file-history.json"));
+    await Promise.all([historyStore.list(), imageStore.list(), phraseStore.list(), fileStore.list()]);
+    await trimNonImageHistory();
     try { rememberClipboardText(await clipboard.readText()); }
     catch { lastClipboardText = ""; }
     // Do not decode a lazy/large clipboard image before the tray and shortcut are ready.
@@ -693,6 +777,7 @@ if (!app.requestSingleInstanceLock()) {
     createWindow();
     registerGlobalShortcut();
     setInterval(() => void pollClipboard(), CLIPBOARD_POLL_MS);
+    for (const entry of await fileStore.list()) savePendingFileCopy(entry);
 
     if (process.platform === "darwin") {
       screenshotMonitor = new ScreenshotMonitor(
@@ -717,6 +802,7 @@ if (!app.requestSingleInstanceLock()) {
       isQuitting = true;
       setShortcutRecording(false);
       screenshotMonitor?.stop();
+      fileStore.stop();
       globalShortcut.unregisterAll();
     });
   }).catch((error: unknown) => {

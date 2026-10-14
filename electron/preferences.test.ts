@@ -51,7 +51,7 @@ test("preferences preserve old shortcut on conflict, serialize updates, persist 
 });
 
 test("editable preferences validate types and persist without overwriting concurrent shortcut updates", async () => {
-  for (const patch of [{ imageLimit: 0 }, { textLimit: 1001 }, { imageLimit: 1.5 }, { textLimit: "3" }, { language: ["en"] }, { appearance: "blue" }, { path: "/tmp" }, []]) {
+  for (const patch of [{ imageLimit: 0 }, { textLimit: 1001 }, { imageLimit: 1.5 }, { textLimit: "3" }, { language: ["en"] }, { appearance: "blue" }, { saveFileCopies: "true" }, { path: "/tmp" }, []]) {
     assert.equal(preferencePatch(patch), null);
   }
   const directory = await mkdtemp(join(tmpdir(), "gpaster-preferences-"));
@@ -62,7 +62,10 @@ test("editable preferences validate types and persist without overwriting concur
     const restored = new Preferences(path, "Control+C", "darwin", registry(), () => {});
     await restored.load();
     assert.equal(restored.shortcut, "Alt+G");
-    assert.deepEqual(restored.options, { language: "en", appearance: "dark", textLimit: 6, imageLimit: 2 });
+    assert.deepEqual(restored.options, { language: "en", appearance: "dark", textLimit: 6, imageLimit: 2, saveFileCopies: false });
+    assert.equal(await restored.update({ saveFileCopies: true }), null);
+    const copyPreferences = new Preferences(path, "Control+C", "darwin", registry(), () => {});
+    await copyPreferences.load(); assert.equal(copyPreferences.options.saveFileCopies, true);
     assert.equal(await restored.update({ imageLimit: 0 }), "preferences-invalid");
     assert.equal(restored.options.imageLimit, 2);
   } finally { await rm(directory, { recursive: true, force: true }); }

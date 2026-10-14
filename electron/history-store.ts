@@ -87,6 +87,16 @@ export class HistoryStore {
     });
   }
 
+  async deleteMany(ids: readonly string[]): Promise<void> {
+    await this.runExclusive(async () => {
+      await this.ensureLoaded();
+      const selected = new Set(ids);
+      const next = this.entries.filter(entry => !selected.has(entry.id));
+      if (next.length === this.entries.length) return;
+      await this.persist(next); this.entries = next;
+    });
+  }
+
   private async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
     if (!this.loadPromise) {

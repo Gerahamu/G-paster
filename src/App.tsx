@@ -6,7 +6,7 @@ import SettingsPanel from "./SettingsPanel";
 import { DEFAULT_PREFERENCES } from "./shared/preferences";
 
 type ModuleName = "history" | "phrases" | "screenshots";
-type IconName = "history" | "phrase" | "image" | "search" | "link" | "text" | "copy" | "trash" | "close" | "plus" | "edit" | "star" | "save" | "bookmark" | "settings";
+type IconName = "history" | "phrase" | "image" | "search" | "link" | "text" | "file" | "folder" | "files" | "copy" | "trash" | "close" | "plus" | "edit" | "star" | "save" | "bookmark" | "settings";
 type PhraseEditorState = { id?: string; sourceHistoryId?: string; originalText?: string; text: string; category: string };
 
 const moduleNames: Record<ModuleName, TranslationKey> = { history: "剪贴板", phrases: "常用语", screenshots: "截图" };
@@ -20,6 +20,9 @@ function Icon({ name, size = 17 }: { name: IconName; size?: number }) {
     case "search": return <svg {...base}><circle cx="10.8" cy="10.8" r="6.5" /><path d="m16 16 4.2 4.2" /></svg>;
     case "link": return <svg {...base}><path d="M9.8 14.2 8 16a3.3 3.3 0 0 1-4.7-4.7l3.4-3.4A3.3 3.3 0 0 1 11.4 8" /><path d="m14.2 9.8 1.8-1.8a3.3 3.3 0 0 1 4.7 4.7l-3.4 3.4A3.3 3.3 0 0 1 12.6 16" /><path d="m8.5 15.5 7-7" /></svg>;
     case "text": return <svg {...base}><path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" /><path d="M8 9h8M8 12.5h8M8 16h5" /></svg>;
+    case "file": return <svg {...base}><path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10Z" /><path d="M13 3v7h7M8 14h8M8 17h5" /></svg>;
+    case "folder": return <svg {...base}><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>;
+    case "files": return <svg {...base}><path d="M7 3h10l4 4v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2ZM17 3v5h4M3 7v12a3 3 0 0 0 3 3h10" /></svg>;
     case "copy": return <svg {...base}><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>;
     case "trash": return <svg {...base}><path d="M4.5 7h15M9 7V4.5h6V7m2.5 0-.8 12.5H7.3L6.5 7M10 10.5v5.5M14 10.5v5.5" /></svg>;
     case "close": return <svg {...base}><path d="m6 6 12 12M18 6 6 18" /></svg>;
@@ -48,7 +51,13 @@ function App() {
   const formatTime = (timestamp: number) => timeFormatter.format(timestamp);
   const displayCategory = (value: string) => value === "未分类" ? t("未分类") : value;
   const displayContent = (entry: ClipboardHistoryItem) => isImageEntry(entry)
-    ? t("图片 {width} × {height}", { width: entry.width, height: entry.height }) : entry.content;
+    ? t("图片 {width} × {height}", { width: entry.width, height: entry.height })
+    : entry.kind === "file" && entry.files.length > 1 ? t("{count} 个项目 · {names}", { count: entry.files.length, names: entry.files.slice(0, 3).map(file => file.name).join(", ") }) : entry.content;
+  const fileMeta = (entry: Extract<ClipboardHistoryItem, { kind: "file" }>) => {
+    if (!entry.available) return t("路径失效或无访问权限");
+    const kind = entry.files.length > 1 ? t("文件与文件夹") : entry.files[0].isDirectory ? t("文件夹") : entry.files[0].extension.toUpperCase() || t("文件");
+    return `${kind} · ${t(entry.copyState === "saved" ? "已保存副本" : entry.copyState === "pending" ? "正在保存副本" : entry.copyState === "failed" || entry.copyState === "limit" ? "仅引用，副本未保存" : "原文件引用")}`;
+  };
   const [entries, setEntries] = useState<ClipboardHistoryItem[]>([]);
   const [phrases, setPhrases] = useState<QuickPhrase[]>([]);
   const [activeModule, setActiveModule] = useState<ModuleName>("history");
@@ -168,7 +177,8 @@ function App() {
 
   const filteredEntries = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
-    return normalized ? entries.filter((entry) => entry.content.toLocaleLowerCase().includes(normalized) || displayContent(entry).toLocaleLowerCase().includes(normalized)) : entries;
+    return normalized ? entries.filter((entry) => entry.content.toLocaleLowerCase().includes(normalized) || displayContent(entry).toLocaleLowerCase().includes(normalized) ||
+      (entry.kind === "file" && entry.files.some(file => file.originalPath.toLocaleLowerCase().includes(normalized)))) : entries;
   }, [entries, query, settings.language]);
 
   const filteredPhrases = useMemo(() => {
@@ -185,7 +195,10 @@ function App() {
   async function copyEntry(entry: ClipboardHistoryItem): Promise<void> {
     setError("");
     try {
-      if (!await window.gpaster.copyHistory(entry.id)) setError("这条记录已不存在。");
+      if (!await window.gpaster.copyHistory(entry.id)) {
+        setError(entry.kind === "file" ? "部分文件已移动、删除或无访问权限，无法恢复完整文件列表。" : "这条记录已不存在。");
+        if (entry.kind === "file") await refreshHistory();
+      }
     } catch { setError("复制失败，请重试。"); }
   }
 
@@ -198,13 +211,16 @@ function App() {
   }
 
   async function deleteEntry(id: string): Promise<void> {
+    const entry = entries.find(item => item.id === id);
+    if (entry?.kind === "file" && entry.copyState === "saved" &&
+      !window.confirm(t("删除这条历史及 G-paster 保存的文件副本？原始文件不会被删除。"))) return;
     setError("");
     try { await window.gpaster.deleteHistory(id); }
     catch { setError("删除失败，请重试。"); }
   }
 
   async function clearHistory(): Promise<void> {
-    if (!window.confirm(t("清空全部剪贴板历史和截图？此操作无法撤销。"))) return;
+    if (!window.confirm(t("清空全部剪贴板历史、截图及文件副本？原始文件不会被删除，此操作无法撤销。"))) return;
     setError("");
     try { await window.gpaster.clearHistory(); }
     catch { setError("清空失败，请重试。"); }
@@ -325,20 +341,20 @@ function App() {
           {loading ? <div className="empty-state"><span className="loading-dot" /><span>{t("正在读取记录")}</span></div> : filteredEntries.length > 0 ? (
             <ul className="history-list" aria-label={t("剪贴板记录")}>
               {filteredEntries.map((entry) => <li className="history-item" key={entry.id}>
-                {isImageEntry(entry) ? <button className="history-thumb-button" type="button" draggable onDragStart={(event) => startImageDrag(event, entry.id)} onClick={() => void openImage(entry)} aria-label={t("预览图片")}><img className="history-thumb" src={entry.previewDataUrl} alt="" /></button> : <span className={entry.kind === "link" ? "entry-kind link-kind" : "entry-kind"}><Icon name={entry.kind === "link" ? "link" : "text"} size={16} /></span>}
-                <button className="entry-content" type="button" onClick={() => isImageEntry(entry) ? void openImage(entry) : void copyEntry(entry)} title={displayContent(entry)} aria-label={isImageEntry(entry) ? t("预览图片") : t("复制：{content}", { content: entry.content.slice(0, 80) })}>
+                {isImageEntry(entry) ? <button className="history-thumb-button" type="button" draggable onDragStart={(event) => startImageDrag(event, entry.id)} onClick={() => void openImage(entry)} aria-label={t("预览图片")}><img className="history-thumb" src={entry.previewDataUrl} alt="" /></button> : <span className={entry.kind === "link" ? "entry-kind link-kind" : "entry-kind"}><Icon name={entry.kind === "file" ? entry.files.length > 1 ? "files" : entry.files[0].isDirectory ? "folder" : "file" : entry.kind === "link" ? "link" : "text"} size={16} /></span>}
+                <button className="entry-content" type="button" onClick={() => isImageEntry(entry) ? void openImage(entry) : void copyEntry(entry)} title={entry.kind === "file" ? entry.files.map(file => file.originalPath).join("\n") : displayContent(entry)} aria-label={isImageEntry(entry) ? t("预览图片") : t("复制：{content}", { content: entry.content.slice(0, 80) })}>
                   <span className="entry-preview">{displayContent(entry)}</span>
-                  <span className="entry-meta"><span>{entry.kind === "image" ? `${entry.width} × ${entry.height}` : entry.kind === "link" ? t("链接") : t("文字")}</span><span className="meta-separator" /><time dateTime={new Date(entry.copiedAt).toISOString()}>{formatTime(entry.copiedAt)}</time></span>
+                  <span className="entry-meta"><span>{entry.kind === "image" ? `${entry.width} × ${entry.height}` : entry.kind === "file" ? fileMeta(entry) : entry.kind === "link" ? t("链接") : t("文字")}</span><span className="meta-separator" /><time dateTime={new Date(entry.copiedAt).toISOString()}>{formatTime(entry.copiedAt)}</time></span>
                 </button>
                 <div className="entry-actions">
-                  {entry.kind !== "image" && <button className="icon-button" type="button" onClick={() => openEditor({ sourceHistoryId: entry.id, originalText: entry.content, text: entry.content, category: "未分类" })} aria-label={t("保存为常用语")} title={t("保存为常用语")}><Icon name="bookmark" size={15} /></button>}
+                  {(entry.kind === "text" || entry.kind === "link") && <button className="icon-button" type="button" onClick={() => openEditor({ sourceHistoryId: entry.id, originalText: entry.content, text: entry.content, category: "未分类" })} aria-label={t("保存为常用语")} title={t("保存为常用语")}><Icon name="bookmark" size={15} /></button>}
                   {isImageEntry(entry) && <button className={entry.isFavorite ? "icon-button favorite active" : "icon-button favorite"} type="button" onClick={() => void toggleFavorite(entry)} aria-label={t(entry.isFavorite ? "取消收藏" : "收藏图片")} title={t(entry.isFavorite ? "取消收藏" : "收藏")}><Icon name="star" size={15} /></button>}
                   <button className="icon-button copy-button" type="button" onClick={() => void copyEntry(entry)} aria-label={t(entry.kind === "image" ? "复制图片" : "复制这条记录")} title={t(entry.kind === "image" ? "复制图片" : "复制")}><Icon name="copy" size={15} /></button>
                   <button className="icon-button delete-button" type="button" onClick={() => void deleteEntry(entry.id)} aria-label={t("删除这条记录")} title={t("删除")}><Icon name="trash" size={15} /></button>
                 </div>
               </li>)}
             </ul>
-          ) : <div className="empty-state"><span className="empty-icon">{query ? <Icon name="search" size={18} /> : <BrandIcon size={19} />}</span><strong>{t(query ? "没有找到匹配内容" : "这里还没有剪贴板记录")}</strong><span>{t(query ? "试试更短的关键词。" : "复制文字或图片，G-paster 会自动收好。")}</span></div>}
+          ) : <div className="empty-state"><span className="empty-icon">{query ? <Icon name="search" size={18} /> : <BrandIcon size={19} />}</span><strong>{t(query ? "没有找到匹配内容" : "这里还没有剪贴板记录")}</strong><span>{t(query ? "试试更短的关键词。" : "复制文字、图片或文件，G-paster 会自动收好。")}</span></div>}
           {entries.length > 0 && <div className="history-toolbar history-footer">{query && <span className="result-count">{t("找到 {count} 条", { count: filteredEntries.length })}</span>}<button className="clear-all" type="button" onClick={() => void clearHistory()}>{t("清空记录")}</button></div>}
         </section>}
 

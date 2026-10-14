@@ -43,10 +43,32 @@ export interface ClipboardImageEntry {
   previewDataUrl: string;
 }
 
-export type ClipboardHistoryItem = ClipboardEntry | ClipboardImageEntry;
+export type FileCopyState = "reference" | "pending" | "saved" | "failed" | "limit";
+
+export interface ClipboardFileReference {
+  name: string;
+  originalPath: string;
+  isDirectory: boolean;
+  extension: string;
+  size: number | null;
+  available: boolean;
+}
+
+export interface ClipboardFileEntry {
+  id: string;
+  content: string;
+  kind: "file";
+  createdAt: number;
+  copiedAt: number;
+  files: ClipboardFileReference[];
+  available: boolean;
+  copyState: FileCopyState;
+}
+
+export type ClipboardHistoryItem = ClipboardEntry | ClipboardImageEntry | ClipboardFileEntry;
 
 export interface CaptureIssue {
-  source: "clipboard-image" | "screenshots";
+  source: "clipboard-image" | "screenshots" | "clipboard-file";
   message: string;
 }
 

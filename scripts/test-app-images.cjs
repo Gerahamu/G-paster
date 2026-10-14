@@ -25,6 +25,7 @@ childProcess.execFileSync = (file, args, options) => file === 'defaults' && args
   ? screenshots : originalExecFileSync(file, args, options);
 let items = [], text = '';
 clipboard.read = async () => items;
+clipboard.has = async type => items.some(item => item.types.includes(type));
 clipboard.readText = async () => text;
 clipboard.write = async (next) => { items = next; text = ''; };
 clipboard.writeText = async (next) => { text = next; items = []; };
@@ -105,8 +106,9 @@ app.whenReady().then(async () => {
   const {pathToFileURL} = require('node:url');
   const beforeFile = new Set((await list()).map(entry => entry.id));
   items = [{types:[nativeFileUrl],getType:async () => new Blob([pathToFileURL(fixture).href])}];
-  await waitFor(async () => (await list()).some(entry => entry.kind === 'image' && !beforeFile.has(entry.id)), 'native file URL import');
-  console.log('PASS native file URL auto-import through actual main/preload/renderer');
+  await waitFor(async () => (await list()).some(entry => entry.kind === 'file' && !beforeFile.has(entry.id)), 'native file URL recorded as file reference');
+  assert.equal((await list()).some(entry => entry.kind === 'image' && !beforeFile.has(entry.id)), false);
+  console.log('PASS native image file URL is a file reference, not a duplicate image capture');
   // Delay one conversion to reproduce clearing history while decoding is in flight.
   pixels[0] = 87;
   await writeFile(fixture, nativeImage.createFromBitmap(pixels, { width: 20, height: 12 }).toPNG());

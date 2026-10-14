@@ -1,6 +1,23 @@
 export type UiLanguage = "zh" | "en";
 
 const english = {
+  "保存文件副本": "Save file copies",
+  "仅影响之后收集的文件。单批 100 MB，总副本 500 MB；超限保留引用并提示。删除历史会移除副本，原文件不变。": "Applies to future captures. Up to 100 MB per batch and 500 MB total; larger items stay as references with a warning. Deleting history removes saved copies, never originals.",
+  "文本、链接与文件": "Text, links & files",
+  "文件": "File", "文件夹": "Folder", "文件与文件夹": "Files & folders",
+  "{count} 个项目 · {names}": "{count} items · {names}",
+  "路径失效或无访问权限": "Missing or inaccessible",
+  "已保存副本": "Copy saved", "正在保存副本": "Saving copy", "原文件引用": "Original reference", "仅引用，副本未保存": "Reference only; copy not saved",
+  "部分文件已移动、删除或无访问权限，无法恢复完整文件列表。": "Some files were moved, deleted or are inaccessible. The complete selection cannot be restored.",
+  "删除这条历史及 G-paster 保存的文件副本？原始文件不会被删除。": "Delete this entry and its saved file copies? Original files will not be deleted.",
+  "清空全部剪贴板历史、截图及文件副本？原始文件不会被删除，此操作无法撤销。": "Clear all history, images and saved file copies? Original files will not be deleted. This cannot be undone.",
+  "复制文字、图片或文件，G-paster 会自动收好。": "Copy text, images or files. G-paster will keep them here.",
+  "无法读取剪贴板文件引用，请重新复制文件。": "Could not read file references. Copy the files again.",
+  "文件引用已失效，请从原始位置重新复制。": "The file reference expired. Copy it again from its original location.",
+  "文件引用读取或保存失败，请检查文件权限及本地存储空间。": "Could not read or save file references. Check file permissions and local storage space.",
+  "一次最多收集 1000 个文件或文件夹，请分批复制。": "Copy up to 1000 files or folders at a time. Split larger selections into batches.",
+  "文件副本超过容量保护限制，仅保留原始引用（单批 100 MB，总副本 500 MB）。": "File copy limits reached (100 MB per batch, 500 MB total). Original references were kept.",
+  "文件副本保存失败，仅保留原始引用。请检查文件权限及磁盘空间。": "Could not save file copies. Original references were kept. Check permissions and disk space.",
   "偏好设置": "Preferences", "浅色": "Light", "深色": "Dark",
   "放弃未保存的数量修改？": "Discard unsaved limit changes?",
   "设置已保存。": "Settings saved.", "数量已保存，下次收集或启动时按新上限清理。": "Limits saved. Applied on the next capture or launch.",

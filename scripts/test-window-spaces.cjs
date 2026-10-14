@@ -24,6 +24,7 @@ if (process.platform !== 'darwin') {
   let text = '', registeredCallback, window;
   clipboard.readText = async () => text;
   clipboard.read = async () => [];
+  clipboard.has = async () => false;
   const childProcess = require('node:child_process');
   childProcess.execFileSync = (file, args, options) => file === 'defaults' && args?.[1] === 'com.apple.screencapture'
     ? screenshots : execFileSync(file, args, options);

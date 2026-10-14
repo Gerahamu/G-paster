@@ -52,7 +52,11 @@ export async function readClipboardImages(
   read: () => Promise<ImageClipboardItem[]>, previousHash: string,
   decode: (source: Buffer) => Promise<DecodedImage | null>
 ): Promise<ClipboardImageResult | null> {
-  return readImageItems(await readPayload(read), previousHash, decode);
+  return readImageItems(await readClipboardItems(read), previousHash, decode);
+}
+
+export function readClipboardItems(read: () => Promise<ImageClipboardItem[]>): Promise<ImageClipboardItem[]> {
+  return readPayload(read);
 }
 
 function isBlob(value: unknown): value is Blob {

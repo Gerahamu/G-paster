@@ -21,6 +21,7 @@ BrowserWindow.prototype.show = function () {};
 BrowserWindow.prototype.focus = function () {};
 globalShortcut.register = () => true;
 clipboard.read = async () => []; clipboard.readText = async () => '';
+clipboard.has = async () => false;
 clipboard.writeText = async () => undefined;
 const childProcess = require('node:child_process'), originalExec = childProcess.execFileSync;
 childProcess.execFileSync = (file, args, options) => file === 'defaults' && args?.[1] === 'com.apple.screencapture' ? screenshots : originalExec(file, args, options);
