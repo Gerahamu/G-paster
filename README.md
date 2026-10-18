@@ -6,11 +6,11 @@
 
 **把复制过的内容，变成随时可用的下一步。**
 
-一个常驻 macOS 菜单栏的轻量剪贴板工具。<br />剪贴板、常用语、截图中转站，在一个紧凑面板里接着用。
+一款桌面剪贴板效率工具。<br />剪贴板、常用语、截图中转站，在一个紧凑面板里接着用。
 
-![版本 0.1.7](https://img.shields.io/badge/version-0.1.7-262626?style=flat-square&labelColor=707786) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-707786?style=flat-square&labelColor=20222a) ![本地存储](https://img.shields.io/badge/data-local%20only-707786?style=flat-square&labelColor=20222a)
+![Windows 0.9.0](https://img.shields.io/badge/Windows-0.9.0-262626?style=flat-square&labelColor=707786) ![macOS 0.1.7 Apple Silicon](https://img.shields.io/badge/macOS-0.1.7%20Apple%20Silicon-707786?style=flat-square&labelColor=20222a) ![本地存储](https://img.shields.io/badge/data-local%20only-707786?style=flat-square&labelColor=20222a)
 
-[下载 macOS App](https://github.com/Gerahamu/G-paster/releases/download/v0.1.7/G-paster-v0.1.7-macos-arm64.zip) · [版本更新](https://github.com/Gerahamu/G-paster/releases/tag/v0.1.7) · [开始使用](#开始使用) · [参与开发](#开发与构建)
+[下载 Windows 版](https://github.com/Gerahamu/G-paster/releases/download/v0.9.0/Gpaster-Setup-0.9.0-win-x64.exe) · [下载 macOS 版](https://github.com/Gerahamu/G-paster/releases/download/v0.9.0/G-paster-v0.1.7-macos-arm64.zip) · [版本与校验](https://github.com/Gerahamu/G-paster/releases/tag/v0.9.0) · [开始使用](#开始使用) · [参与开发](#开发与构建)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/readme/hero-dark.png" />
@@ -110,18 +110,24 @@ Photo Booth 可能提供旧版 TIFF 与文件引用，而非标准 PNG。0.1.6 �
 
 ### 直接下载
 
-1. 下载 [G-paster v0.1.7 · macOS Apple Silicon](https://github.com/Gerahamu/G-paster/releases/download/v0.1.7/G-paster-v0.1.7-macos-arm64.zip)。
+#### Windows
+
+1. 下载 [Gpaster v0.9.0 · Windows x64 安装程序](https://github.com/Gerahamu/G-paster/releases/download/v0.9.0/Gpaster-Setup-0.9.0-win-x64.exe)，运行安装程序并按 Windows 提示完成安装。
+
+#### macOS
+
+1. 下载 [G-paster v0.1.7 · macOS Apple Silicon](https://github.com/Gerahamu/G-paster/releases/download/v0.9.0/G-paster-v0.1.7-macos-arm64.zip)。
 2. 解压后将 `G-paster.app` 放入「应用程序」文件夹。更新已有版本时，先从菜单栏退出旧应用，再替换 `.app`。
 3. 打开应用，通过菜单栏图标或 <kbd>Control</kbd> + <kbd>C</kbd> 呼出面板；如快捷键冲突，可在设置中修改。
 
-发布包仅提供 **macOS Apple Silicon（arm64）**。安装包元数据要求 macOS 13.0 或更高，本轮实测环境为 macOS 27.0.1 / arm64；Intel Mac、其他 macOS 版本、Windows 和 Linux 尚未完成本轮发布验证。
+macOS 下载包面向 **Apple Silicon（arm64）**，安装包元数据要求 macOS 13.0 或更高。本轮实测环境为 macOS 27.0.1 / arm64；Intel Mac 和其他 macOS 版本尚未完成验证。Windows 当前提供 x64 安装程序；Linux 暂无发行包。
 
 发布包使用 **ad-hoc 签名**并检查完整性，尚未经过 Developer ID 签名或 Apple 公证。若系统限制打开，请参阅下方说明。
 
 <details>
 <summary><strong>校验下载文件</strong></summary>
 
-从同一 [Release](https://github.com/Gerahamu/G-paster/releases/tag/v0.1.7) 下载 `SHA256SUMS.txt`，与压缩包放在同一文件夹，再执行：
+从本次 [Release](https://github.com/Gerahamu/G-paster/releases/tag/v0.9.0) 下载 `SHA256SUMS.txt`，与压缩包放在同一文件夹，再执行：
 
 ```bash
 shasum -a 256 -c SHA256SUMS.txt
