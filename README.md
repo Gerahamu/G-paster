@@ -10,7 +10,7 @@
 
 ![Windows 0.9.0](https://img.shields.io/badge/Windows-0.9.0-262626?style=flat-square&labelColor=707786) ![macOS 0.1.7 Apple Silicon](https://img.shields.io/badge/macOS-0.1.7%20Apple%20Silicon-707786?style=flat-square&labelColor=20222a) ![本地存储](https://img.shields.io/badge/data-local%20only-707786?style=flat-square&labelColor=20222a)
 
-[下载 Windows 版](https://github.com/Gerahamu/G-paster/releases/download/v0.9.0/Gpaster-Setup-0.9.0-win-x64.exe) · [下载 macOS 版](https://github.com/Gerahamu/G-paster/releases/download/v0.9.0/G-paster-v0.1.7-macos-arm64.zip) · [版本与校验](https://github.com/Gerahamu/G-paster/releases/tag/v0.9.0) · [开始使用](#开始使用) · [参与开发](#开发与构建)
+[下载 Windows 版](https://github.com/Gerahamu/G-paster/releases/download/v0.9.0/Gpaster-Setup-0.9.0-win-x64.exe) · [下载 macOS 版](https://github.com/Gerahamu/G-paster/releases/download/v0.9.0/G-paster-v0.1.7-macos-arm64-20261019.zip) · [版本与校验](https://github.com/Gerahamu/G-paster/releases/tag/v0.9.0) · [开始使用](#开始使用) · [参与开发](#开发与构建)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/readme/hero-dark.png" />
@@ -54,7 +54,7 @@
 
 ## 三个模块，一个面板
 
-> 当前源码新增文件历史支持，尚未发布到下方 v0.1.7 下载包：文件、文件夹和一次多文件复制会作为一条历史保存；Finder 中复制 PNG/JPEG 文件时保存文件引用，图片数据本身仍按图片机制保存。
+> macOS v0.1.7 的 20261019 更新构建已包含文件历史支持：文件、文件夹和一次多文件复制会作为一条历史保存；Finder 中复制 PNG/JPEG 文件时保存文件引用，图片数据本身仍按图片机制保存。
 
 文件默认只记录路径，不复制本体。点击记录会恢复整组文件引用，可回到 Finder 粘贴；路径失效时会显示状态，不会部分恢复或删除原文件。文件与文本、链接共用原有的非图片历史上限，图片上限保持独立。一次最多接收 1000 个文件引用；副本预检最多遍历 10000 个目录项，后台复制设有 60 秒超时保护。
 
@@ -65,7 +65,7 @@
 | 剪贴板 | 常用语 | 截图中转站 |
 | :--- | :--- | :--- |
 | **找回刚刚复制的内容** | **少打一次重复的文字** | **让图片流转更顺手** |
-| 自动记录文本、HTTP / HTTPS 链接、图片及文件引用；搜索、重新复制、单条删除或清空记录。 | 创建、编辑、分类和搜索常用语，点击即可复制；也可以从文本历史直接保存。 | 收集复制的图片和 macOS 新截图；预览、收藏、重新复制、拖出图片或另存本地。 |
+| 自动记录文本、HTTP / HTTPS 链接、图片及文件引用；搜索、重新复制、单条删除或清空记录。 | 创建、编辑、分类和搜索常用语，点击即可复制；也可以从文本历史直接保存。 | 收集复制的图片和 macOS 新截图；预览、重新复制、多选拖出图片或另存本地。 |
 | 文本、链接和文件批次默认共用 **300 条**上限，可在设置中修改。 | 常用语独立持久化保存。 | 图片与截图默认合计 **10 张**，可在设置中修改。 |
 
 ### 用完即收，随时再开
@@ -88,13 +88,13 @@
 
 `Control+C` 是当前 macOS 默认全局快捷键，可能与终端的中断操作或其他软件冲突。标题栏齿轮或菜单栏「设置」可更换快捷键、恢复默认和设置开机启动；如快捷键注册失败，可通过菜单栏打开面板。Windows 源码中的默认快捷键为 `Control+Shift+G`，该平台尚未完成发布验证。
 
-保留数量输入后需点击「保存保留数量」。降低上限前需要确认：下次收集或启动时，最旧记录会按新上限淘汰，收藏图片也不豁免；常用语不受影响。默认数量可一键恢复。设置保存在独立的 `preferences.json`，不更改历史或常用语的数据格式。
+保留数量更改后自动保存并生效，输入过程中有短暂防抖，离开输入框时立即提交。下次收集或启动时，最旧记录会按新上限淘汰；常用语不受影响。默认数量可一键恢复。设置保存在独立的 `preferences.json`，不更改历史或常用语的数据格式。
 
 开机启动使用系统登录项，由用户主动开启；需要系统批准时，设置页会显示提示。开发模式禁用此项，避免把 Electron 开发进程注册为登录项。当前 macOS 包尚未经过 Apple 公证，系统可能限制登录项注册；以设置页读取的实际状态为准。实际注销／登录流程仍需真机验证。参见 [Electron 登录项说明](https://www.electronjs.org/docs/latest/api/app#appsetloginitemsettingssettings-macos-windows)。
 
 macOS 截图监控读取桌面及系统配置的截图保存目录，在应用运行时收集新生成、符合截图文件名规则的图片，等待文件写入稳定后再导入。它不是对所有文件夹的图片扫描，也不会自动导入启动前的旧截图。原始截图文件保持原样；应用内保存的是独立图片副本。
 
-复制到剪贴板的普通图片数据也会进入截图中转站。v0.1.7 发布版会从 Finder 图片文件引用读取图片，当前源码已将这类操作改为文件历史。macOS 的 TIFF、HEIC 等图片表示会先转为 PNG 保存；当前版本不对图像内容做语义识别。
+复制到剪贴板的普通图片数据也会进入截图中转站。20261019 Mac 更新构建将 Finder 复制的图片文件作为文件历史记录，直接复制的图片数据仍进入截图中转站。macOS 的 TIFF、HEIC 等图片表示会先转为 PNG 保存；当前版本不对图像内容做语义识别。
 
 Photo Booth 可能提供旧版 TIFF 与文件引用，而非标准 PNG。0.1.6 会尝试可读的图片表示及本机文件来源；源文件不可访问时，只要剪贴板仍含可解码图片数据，就能继续采集。仅有失效文件引用、尚未下载的云端原图或不支持的格式，仍需原文件可访问后重试。
 
@@ -116,7 +116,9 @@ Photo Booth 可能提供旧版 TIFF 与文件引用，而非标准 PNG。0.1.6 �
 
 #### macOS
 
-1. 下载 [G-paster v0.1.7 · macOS Apple Silicon](https://github.com/Gerahamu/G-paster/releases/download/v0.9.0/G-paster-v0.1.7-macos-arm64.zip)。
+**当前下载为 20261019 更新构建**（应用内版本号仍为 0.1.7）。包含截图多选及多图拖出、单击图片复制并收起面板、右击图片打开详情、设置自动保存，以及剪贴板监听的第一阶段优化。点击图片左上角复选框可多选，也可使用 Command/Control 点击切换选择。
+
+1. 下载 [G-paster v0.1.7 · macOS Apple Silicon](https://github.com/Gerahamu/G-paster/releases/download/v0.9.0/G-paster-v0.1.7-macos-arm64-20261019.zip)。
 2. 解压后将 `G-paster.app` 放入「应用程序」文件夹。更新已有版本时，先从菜单栏退出旧应用，再替换 `.app`。
 3. 打开应用，通过菜单栏图标或 <kbd>Control</kbd> + <kbd>C</kbd> 呼出面板；如快捷键冲突，可在设置中修改。
 
@@ -186,7 +188,7 @@ G-paster 无需账户或云端服务，不向外部服务上传剪贴板内容�
 | 图片、截图 | `image-history.json`、`images/*.png` | 共用图片池，默认 10 张，可设置 1–100 张；按最近复制或收集时间保留，超出的旧记录及内部图片副本自动移除 |
 | 常用语 | `phrases.json` | 独立保存，支持相同内容的不同常用语 |
 
-**图片收藏用于标记，不会阻止自动淘汰。**「清空记录」会清空剪贴板历史与截图，包括收藏图片；常用语不受此操作影响。截图的外部原文件不会因此删除。
+截图收藏功能已移除。「清空记录」会清空剪贴板历史与截图；常用语不受此操作影响。截图的外部原文件不会因此删除。
 
 存储采用原子写入、`.bak` 备份和损坏恢复机制。数据保存在本地，并不意味着已加密：剪贴板可能包含密码或其他敏感信息，当前版本没有敏感内容过滤和本地数据加密功能。
 
@@ -196,7 +198,7 @@ G-paster 无需账户或云端服务，不向外部服务上传剪贴板内容�
 - 渲染进程启用 `contextIsolation` 与 `sandbox`，关闭 `nodeIntegration`。
 - 通过带 TypeScript 类型约束的 preload API 暴露有限 IPC 操作。
 - 生产构建仅加载应用内的 `dist/index.html`；导航、重定向及 IPC 使用统一的受信页面校验。
-- 文本剪贴板轮询间隔为 180 ms，macOS 截图目录扫描间隔为 750 ms。
+- 文本剪贴板轮询间隔为 25 ms，macOS 截图目录扫描间隔为 750 ms。
 
 这些是当前实现的安全与运行机制，不代表已完成所有系统环境下的安全和长期稳定性验证。
 
