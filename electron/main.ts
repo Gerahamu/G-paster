@@ -259,7 +259,10 @@ function showWindow(): void {
 
 function hideWindow(): void {
   setShortcutRecording(false);
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("window:hidden");
+    mainWindow.hide();
+  }
 }
 
 function toggleWindow(): void {
@@ -628,7 +631,7 @@ function registerHistoryIpc(): void {
     // A single image follows the original native-file path; selections export all files.
     const icon = image.resize({ width: 64 });
     event.sender.startDrag(files.length === 1 ? { file: files[0], icon } : { file: files[0], files, icon });
-    if (dismissAfterDrag && files.length > 1 && process.platform === "darwin") {
+    if (dismissAfterDrag && process.platform === "darwin") {
       // Electron's native macOS drag source does not send DOM dragend or a drop result.
       // Wait for the physical gesture to end; hiding earlier can interrupt the native drag.
       await new Promise<void>((resolve, reject) => {

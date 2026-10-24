@@ -130,6 +130,7 @@ export interface GpasterBridge {
   previewPhraseImage(id: string): Promise<string | null>;
   setCompactMode(compact: boolean): void;
   onHistoryChanged(callback: (entries: ClipboardHistoryItem[]) => void): () => void;
+  onWindowHidden(callback: () => void): () => void;
   onWindowShown(callback: () => void): () => void;
   platform: "darwin" | "win32" | "linux";
 }

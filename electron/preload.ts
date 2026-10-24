@@ -71,6 +71,11 @@ const bridge: GpasterBridge = {
     ipcRenderer.on("history:changed", listener);
     return () => ipcRenderer.removeListener("history:changed", listener);
   },
+  onWindowHidden: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on("window:hidden", listener);
+    return () => ipcRenderer.removeListener("window:hidden", listener);
+  },
   onWindowShown: (callback) => {
     const listener = () => callback();
     ipcRenderer.on("window:shown", listener);

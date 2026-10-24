@@ -171,7 +171,9 @@ function App() {
       setEntries(nextEntries);
       setLoading(false);
     });
+    const unsubscribeHidden = window.gpaster.onWindowHidden(() => setSelectedImages(new Set()));
     const unsubscribeShown = window.gpaster.onWindowShown(() => {
+      setSelectedImages(new Set());
       setShowSettings(false);
       setPreview(null);
       previewRequest.current++;
@@ -191,7 +193,7 @@ function App() {
         setError("读取本地内容失败。请稍后重试。");
       });
     const unsubscribeSettings = window.gpaster.onSettingsRequested(() => setShowSettings(true));
-    return () => { unsubscribeHistory(); unsubscribeShown(); unsubscribeIssues(); unsubscribeSettings(); };
+    return () => { unsubscribeHistory(); unsubscribeHidden(); unsubscribeShown(); unsubscribeIssues(); unsubscribeSettings(); };
   }, []);
 
   useEffect(() => {
@@ -275,7 +277,7 @@ function App() {
     imageDragStarted.current = true;
     setError("");
     const entry = entries.find(item => item.id === id);
-    const dismissAfterDrag = activeModule === "screenshots" && (selection?.length ?? 0) > 1;
+    const dismissAfterDrag = activeModule === "screenshots";
     const drag = entry?.kind === "file" ? window.gpaster.startFileDrag(id) : window.gpaster.startImageDrag(selection ?? id, dismissAfterDrag);
     void drag.then((started) => {
       if (!started) setError("这张图片已不存在，无法拖动。");

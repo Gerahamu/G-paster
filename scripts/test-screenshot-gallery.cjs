@@ -113,17 +113,40 @@ app.whenReady().then(async () => {
   finishGesture(null); finishGesture = undefined;
   await waitFor(() => hideCalls === 1, 'multi-drag dismisses window after release');
   await waitFor(() => evaluate('document.querySelectorAll(".image-card.selected").length === 0'), 'multi-drag clears selection');
-  await beginDrag();
-  await delay(200);
-  assert.equal(nativeDrags.at(-1).files, undefined, 'single drag keeps original payload');
-  assert.equal(finishGesture, undefined, 'single drag does not use multi-drag completion');
-  assert.equal(hideCalls, 1);
+  for (const [index, selectFirst] of [false, true].entries()) {
+    if (selectFirst) await evaluate('document.querySelectorAll(".image-selection")[0].click()');
+    assert.equal(await evaluate('document.querySelectorAll(".image-card.selected").length'), selectFirst ? 1 : 0);
+    await beginDrag();
+    await waitFor(() => Boolean(finishGesture), 'single drag waits for physical release');
+    assert.equal(nativeDrags.at(-1).files, undefined, 'single image retains single-file native payload');
+    assert.equal(hideCalls, 1 + index, 'single drag must not hide before release');
+    finishGesture(null); finishGesture = undefined;
+    await waitFor(() => hideCalls === 2 + index, 'single drag hides after release');
+    await waitFor(() => evaluate('document.querySelectorAll(".image-card.selected").length === 0'), 'single drag clears selection');
+  }
+  const existing = (await list()).find(item => item.kind === 'image');
+  assert.equal(await evaluate(`window.gpaster.startImageDrag(${JSON.stringify(existing.id)})`), true);
+  assert.equal(finishGesture, undefined, 'callers without auto-dismiss retain original behavior');
+  assert.equal(hideCalls, 3);
   const before = nativeDrags.length;
   assert.equal(await evaluate('window.gpaster.startImageDrag(["missing-a", "missing-b"], true)'), false);
   assert.equal(nativeDrags.length, before);
-  assert.equal(hideCalls, 1);
+  assert.equal(hideCalls, 3);
   window.hide = originalHide;
-  console.log('PASS multi-drag waits for release, hides and clears; failures preserve selection; single/invalid drags unchanged');
+  console.log('PASS multi-image, direct single-image and checked single-image drags hide and clear after release; invalid and non-dismiss calls preserved');
+  for (const action of ['close', 'blur', 'reopen']) {
+    await evaluate('document.querySelectorAll(".image-selection")[1].click()');
+    await waitFor(() => evaluate('document.querySelectorAll(".image-card.selected").length > 0'), 'selection before lifecycle action');
+    if (action === 'close') window.close();
+    else if (action === 'blur') window.emit('blur');
+    else window.webContents.send('window:shown');
+    await waitFor(() => evaluate('document.querySelectorAll(".image-card.selected").length === 0'), `${action} clears screenshot selection`);
+    assert.equal(window.isDestroyed(), false, 'panel close keeps background app alive');
+    await evaluate('document.querySelectorAll(".module-tab")[2].click()');
+    assert.equal(await evaluate('document.querySelectorAll(".image-selection:checked").length'), 0, 'selection remains empty when returning to screenshots');
+  }
+  console.log('PASS close, blur/hide and reopen all clear screenshot multi-selection through real preload/IPC');
+
 
 }).catch(error => {
   console.error(error);

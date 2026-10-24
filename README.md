@@ -8,9 +8,9 @@
 
 一个常驻 macOS 菜单栏的轻量剪贴板工具。<br />剪贴板、常用语、截图中转站，在一个紧凑面板里接着用。
 
-![Mac v0.999](https://img.shields.io/badge/Mac-v0.999-262626?style=flat-square&labelColor=707786) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-707786?style=flat-square&labelColor=20222a) ![本地存储](https://img.shields.io/badge/data-local%20only-707786?style=flat-square&labelColor=20222a)
+![Mac v0.999.1](https://img.shields.io/badge/Mac-v0.999.1-262626?style=flat-square&labelColor=707786) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-707786?style=flat-square&labelColor=20222a) ![本地存储](https://img.shields.io/badge/data-local%20only-707786?style=flat-square&labelColor=20222a)
 
-[下载 Mac v0.999](https://github.com/Gerahamu/G-paster/releases/tag/v0.999) · [本次验证](docs/release-validation-v0.999.md) · [版本更新](CHANGELOG.md) · [开始使用](#开始使用) · [参与开发](#开发与构建)
+[下载 Mac v0.999.1](https://github.com/Gerahamu/G-paster/releases/tag/v0.999.1) · [本次验证](docs/release-validation-v0.999.1.md) · [版本更新](CHANGELOG.md) · [开始使用](#开始使用) · [参与开发](#开发与构建)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/readme/hero-dark.png" />
@@ -24,11 +24,11 @@
 
 <br />
 
-## Mac v0.999 · macOS Apple Silicon
+## Mac v0.999.1 · macOS Apple Silicon
 
-**应用内部版本 0.999.0，Git 标签 `v0.999`。** 包含 16:10 双列截图画廊、完整等比预览、图片常用语、文件历史及此前 0.9.0 的性能和可靠性修复。截图多选拖移结束、释放鼠标后自动收起窗口并清空选择；取消拖移也会清空，无法确认第三方输入框是否接收成功。
+**应用内部版本 0.999.1，Git 标签 `v0.999.1`。** 包含 16:10 双列截图画廊、完整等比预览、图片常用语、文件历史及此前 0.9.0 的性能和可靠性修复。截图单张直接拖移、勾选一张拖移及多张拖移结束、释放鼠标后均自动收起窗口并清空选择；关闭、失焦收起和重新打开时也会重置选择；取消拖移也会清空，无法确认第三方输入框是否接收成功。
 
-[下载 macOS arm64 ZIP](https://github.com/Gerahamu/G-paster/releases/download/v0.999/G-paster-v0.999-macos-arm64.zip) · [SHA256SUMS](https://github.com/Gerahamu/G-paster/releases/download/v0.999/SHA256SUMS.txt) · [验证范围](docs/release-validation-v0.999.md)
+[下载 macOS arm64 ZIP](https://github.com/Gerahamu/G-paster/releases/download/v0.999.1/G-paster-v0.999.1-macos-arm64.zip) · [SHA256SUMS](https://github.com/Gerahamu/G-paster/releases/download/v0.999.1/SHA256SUMS.txt) · [验证范围](docs/release-validation-v0.999.1.md)
 
 > 本次公开提供的是 **ad-hoc 签名、未经 Apple 公证的 macOS 构建**，不是 Developer ID 签名的正式分发包。Gatekeeper 可能阻止打开；不提供 Intel Mac、Windows 或 Linux 安装包。已有 Windows 版本见 [v0.9.0 Release](https://github.com/Gerahamu/G-paster/releases/tag/v0.9.0)。
 
@@ -42,7 +42,7 @@
 | :--- | :--- | :--- |
 | 完善 renderer 崩溃、加载失败和无响应提示；文件读取增加超时；损坏图片显示占位并可删除；损坏的本地 JSON 会保留原文件后恢复启动。 | 文本轮询调整为 180 ms；图片/文件 payload 在格式不变时最多每 750 ms 探测一次；截图和历史缩略图缩小，减少 IPC 与内存压力。 | 共享图片池计数更准确；图片导入前保护文字草稿；修复弹窗焦点与旧预览状态；README、CHANGELOG 与验证记录同步到 v0.9。 |
 
-> 本节记录此前未公开发布的 macOS 0.9.0 QA 构建；当前 macOS 下载请使用上方 Mac v0.999。
+> 本节记录此前未公开发布的 macOS 0.9.0 QA 构建；当前 macOS 下载请使用上方 Mac v0.999.1。
 
 [0.9.0 验证范围](docs/release-validation-v0.9.0.md) · [完整更新记录](CHANGELOG.md)
 
@@ -132,7 +132,7 @@ Photo Booth 可能提供旧版 TIFF 与文件引用，而非标准 PNG。0.1.6 �
 
 ## 开始使用
 
-### 下载 Mac v0.999
+### 下载 Mac v0.999.1
 
 从上方 Release 下载 ZIP，解压后将 `G-paster.app` 放入 Applications。本版本仅提供 **macOS Apple Silicon（arm64）**，使用 ad-hoc 签名，没有 Developer ID 签名或 Apple 公证。安装包元数据要求 macOS 13.0 或更高，本轮实测环境为 macOS 27.0.1 / arm64；Intel Mac、其他 macOS 版本、Windows 和 Linux 尚未完成本轮发布验证。
 
@@ -260,6 +260,6 @@ scripts/                开发启动及 macOS 后台应用配置
 
 [反馈问题](https://github.com/Gerahamu/G-paster/issues) · [浏览源码](https://github.com/Gerahamu/G-paster)
 
-<sub>当前版本 Mac v0.999（0.999.0）· macOS arm64 ad-hoc 构建 · 仓库尚未添加开源许可证</sub>
+<sub>当前版本 Mac v0.999.1（0.999.1）· macOS arm64 ad-hoc 构建 · 仓库尚未添加开源许可证</sub>
 
 </div>
