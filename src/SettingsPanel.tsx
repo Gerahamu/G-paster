@@ -13,7 +13,7 @@ const failureKeys: Record<PreferenceFailure, TranslationKey> = {
   "preferences-invalid": "请输入有效的保留数量：文本 1–1000 条，图片 1–100 张。"
 };
 
-export default function SettingsPanel({ system, onBack, onDirtyChange }: { system: SystemSettings; onBack: () => void; onDirtyChange: (dirty: boolean) => void }) {
+export default function SettingsPanel({ system, onBack }: { system: SystemSettings; onBack: () => void }) {
   const t = (key: TranslationKey, values?: Record<string, string | number>) => translate(system.language, key, values);
   const [preferences, setPreferences] = useState<AppPreferences | null>(null);
   const [error, setError] = useState<TranslationKey | "">("");
@@ -23,11 +23,11 @@ export default function SettingsPanel({ system, onBack, onDirtyChange }: { syste
   const [textLimit, setTextLimit] = useState("");
   const [imageLimit, setImageLimit] = useState("");
   const dirtyLimits = useRef(false);
+  const limitRevision = useRef(0);
+  const limitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingLimitSave = useRef<(() => void) | null>(null);
   const recordButton = useRef<HTMLButtonElement>(null);
   const alive = useRef(true);
-  useEffect(() => {
-    onDirtyChange(!!preferences && (textLimit !== String(preferences.textLimit) || imageLimit !== String(preferences.imageLimit)));
-  }, [textLimit, imageLimit, preferences?.textLimit, preferences?.imageLimit]);
   useEffect(() => { if (recording && !busy) recordButton.current?.focus(); }, [recording, busy]);
 
   async function refresh() {
@@ -39,12 +39,17 @@ export default function SettingsPanel({ system, onBack, onDirtyChange }: { syste
   }
   useEffect(() => {
     alive.current = true;
+    const unsubscribe = window.gpaster.onPreferencesChanged(next => {
+      setPreferences(next);
+      if (!dirtyLimits.current) { setTextLimit(String(next.textLimit)); setImageLimit(String(next.imageLimit)); }
+    });
     void refresh();
     const onFocus = () => { void refresh(); };
     window.addEventListener("focus", onFocus);
     return () => {
+      flushLimits();
       alive.current = false;
-      onDirtyChange(false);
+      unsubscribe();
       window.removeEventListener("focus", onFocus);
       void window.gpaster.setShortcutRecording(false).catch(() => undefined);
     };
@@ -62,16 +67,35 @@ export default function SettingsPanel({ system, onBack, onDirtyChange }: { syste
     finally { if (alive.current) setBusy(false); }
   }
 
+  function flushLimits() {
+    if (limitTimer.current) clearTimeout(limitTimer.current);
+    limitTimer.current = null;
+    const save = pendingLimitSave.current;
+    pendingLimitSave.current = null;
+    save?.();
+  }
+
+  function scheduleLimits(text: string, images: string) {
+    if (limitTimer.current) clearTimeout(limitTimer.current);
+    dirtyLimits.current = true;
+    ++limitRevision.current;
+    // Avoid committing each intermediate digit; navigation/blur flushes the latest edit.
+    pendingLimitSave.current = () => { void saveLimits(text, images); };
+    limitTimer.current = setTimeout(flushLimits, 500);
+  }
+
   async function saveLimits(text = textLimit, images = imageLimit) {
-    if (!preferences || busy) return;
+    if (!preferences) return;
+    const revision = ++limitRevision.current;
+    dirtyLimits.current = true;
     const patch = preferencePatch({ textLimit: Number(text), imageLimit: Number(images) });
     if (!patch || !text.trim() || !images.trim()) { setError(failureKeys["preferences-invalid"]); return; }
-    if ((Number(text) < preferences.textLimit || Number(images) < preferences.imageLimit) &&
-      !window.confirm(t("降低保留上限后，下次收集或启动时会移除最旧记录（包括收藏图片），无法撤销。是否保存？"))) return;
-    setBusy(true); setError(""); setNotice("");
+    setError(""); setNotice("");
+    // Once submitted, leaving the panel cannot cancel a pending valid edit.
+    // The main process serializes writes; only the latest result normalizes the fields.
     try {
       const result = await window.gpaster.updatePreferences(patch);
-      if (!alive.current) return;
+      if (!alive.current || revision !== limitRevision.current) return;
       setPreferences(result.settings);
       if (result.error) setError(failureKeys[result.error]);
       else {
@@ -79,8 +103,7 @@ export default function SettingsPanel({ system, onBack, onDirtyChange }: { syste
         setTextLimit(String(result.settings.textLimit)); setImageLimit(String(result.settings.imageLimit));
         setNotice("数量已保存，下次收集或启动时按新上限清理。");
       }
-    } catch { if (alive.current) setError("设置保存失败，请重试。"); }
-    finally { if (alive.current) setBusy(false); }
+    } catch { if (alive.current && revision === limitRevision.current) setError("设置保存失败，请重试。"); }
   }
 
   async function startRecording() {
@@ -111,7 +134,7 @@ export default function SettingsPanel({ system, onBack, onDirtyChange }: { syste
   return <section className="settings-panel" aria-label={t("设置")}>
     <div className="settings-heading"><button className="settings-back" type="button" onClick={onBack} aria-label={t("返回")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg>{t("返回")}</button><h1>{t("设置")}</h1></div>
     <div className="settings-scroll">
-      {error && <div className="error-message" role="alert">{t(error)}{!preferences && <button type="button" onClick={() => void refresh()}>{t("重试")}</button>}</div>}
+      {error && <div className="error-message" role="alert">{t(error)}{!preferences ? <button type="button" onClick={() => void refresh()}>{t("重试")}</button> : dirtyLimits.current && <button type="button" onClick={() => void saveLimits()}>{t("重试")}</button>}</div>}
       {notice && <div className="notice-message" role="status">{t(notice)}</div>}
       {!preferences ? !error && <div className="empty-state"><span className="loading-dot" /></div> : <>
         <section className="settings-section" aria-labelledby="general-heading"><h2 id="general-heading">{t("使用习惯")}</h2>
@@ -126,14 +149,14 @@ export default function SettingsPanel({ system, onBack, onDirtyChange }: { syste
           <div className="settings-row"><label htmlFor="appearance-choice">{t("外观")}</label><select id="appearance-choice" className="settings-select" value={preferences.appearance} disabled={busy || recording} onChange={event => void apply(() => window.gpaster.updatePreferences({ appearance: event.target.value as AppearanceChoice }))}><option value="system">{t("跟随系统")}</option><option value="light">{t("浅色")}</option><option value="dark">{t("深色")}</option></select></div>
         </div><p className="settings-caption">{t("自定义语言与外观，或自动跟随系统。")}</p></section>
         <section className="settings-section" aria-labelledby="storage-heading"><h2 id="storage-heading">{t("本地存储")}</h2><div className="settings-group">
-          <form className="settings-limits-form" onSubmit={event => { event.preventDefault(); void saveLimits(); }}>
-            <div className="settings-row"><label htmlFor="text-limit">{t("文本、链接与文件")}</label><input id="text-limit" className="settings-number" type="number" min={TEXT_LIMIT_RANGE.min} max={TEXT_LIMIT_RANGE.max} step="1" value={textLimit} disabled={busy || recording} onChange={event => { dirtyLimits.current = true; setTextLimit(event.target.value); }} /></div>
-            <div className="settings-row"><label htmlFor="image-limit">{t("图片与截图")}</label><input id="image-limit" className="settings-number" type="number" min={IMAGE_LIMIT_RANGE.min} max={IMAGE_LIMIT_RANGE.max} step="1" value={imageLimit} disabled={busy || recording} onChange={event => { dirtyLimits.current = true; setImageLimit(event.target.value); }} /></div>
-            <div className="settings-row limits-actions"><button className="settings-link" type="button" disabled={busy || recording} onClick={() => void saveLimits(String(DEFAULT_PREFERENCES.textLimit), String(DEFAULT_PREFERENCES.imageLimit))}>{t("恢复默认数量")}</button><button className="settings-action" type="submit" disabled={busy || recording || (textLimit === String(preferences.textLimit) && imageLimit === String(preferences.imageLimit))}>{t("保存保留数量")}</button></div>
+          <form className="settings-limits-form" onSubmit={event => { event.preventDefault(); flushLimits(); }}>
+            <div className="settings-row"><label htmlFor="text-limit">{t("文本、链接与文件")}</label><input id="text-limit" className="settings-number" type="number" min={TEXT_LIMIT_RANGE.min} max={TEXT_LIMIT_RANGE.max} step="1" value={textLimit} disabled={busy || recording} onBlur={flushLimits} onChange={event => { dirtyLimits.current = true; setTextLimit(event.target.value); scheduleLimits(event.target.value, imageLimit); }} /></div>
+            <div className="settings-row"><label htmlFor="image-limit">{t("图片与截图")}</label><input id="image-limit" className="settings-number" type="number" min={IMAGE_LIMIT_RANGE.min} max={IMAGE_LIMIT_RANGE.max} step="1" value={imageLimit} disabled={busy || recording} onBlur={flushLimits} onChange={event => { dirtyLimits.current = true; setImageLimit(event.target.value); scheduleLimits(textLimit, event.target.value); }} /></div>
+            <div className="settings-row limits-actions"><button className="settings-link" type="button" disabled={busy || recording} onClick={() => { scheduleLimits(String(DEFAULT_PREFERENCES.textLimit), String(DEFAULT_PREFERENCES.imageLimit)); flushLimits(); }}>{t("恢复默认数量")}</button></div>
           </form>
           <div className="settings-row"><div className="settings-copy"><strong>{t("保存文件副本")}</strong><span>{t("仅影响之后收集的文件。单批 100 MB，总副本 500 MB；超限保留引用并提示。删除历史会移除副本，原文件不变。")}</span></div><button className="settings-switch" type="button" role="switch" aria-checked={preferences.saveFileCopies} aria-label={t("保存文件副本")} disabled={busy || recording} onClick={() => void apply(() => window.gpaster.updatePreferences({ saveFileCopies: !preferences.saveFileCopies }))}><span /></button></div>
           <div className="settings-row"><div className="settings-copy"><span>{t("仅存储在本机，原截图保持不变。")}</span></div><button className="settings-action" type="button" onClick={() => { void window.gpaster.openDataDirectory().then(ok => { if (!ok) setError("无法打开数据文件夹。"); }).catch(() => setError("无法打开数据文件夹。")); }}>{t("打开数据文件夹")}</button></div>
-        </div><p className="settings-caption">{t("输入数量后点击保存；常用语不受此上限影响。")}</p></section>
+        </div><p className="settings-caption">{t("更改自动保存并生效；常用语不受此上限影响。")}</p></section>
       </>}
     </div>
     <footer className="settings-footer"><span>G-paster{preferences ? ` ${preferences.version}` : ""}</span><span>{t("本地运行，无需登录")}</span></footer>

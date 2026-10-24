@@ -2,11 +2,14 @@ import { execFileSync } from "node:child_process";
 import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
+import { FILE_OPERATION_TIMEOUT_MS } from "./image-limits";
+import { withTimeout } from "./async-timeout";
 
 const SCREENSHOT_SCAN_INTERVAL_MS = 750;
 const SCREENSHOT_STABLE_MS = 600;
 const SUPPORTED_SCREENSHOT_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".heic", ".heif"]);
-const SCREENSHOT_PREFIX = /^(?:screenshot|screen[ _-]*shot|屏幕快照|屏幕截图|截屏|スクリーンショット|스크린샷)(?=[\s_\d-]|$)/i;
+const SCREENSHOT_PREFIX = /^(?:screenshot|screen[ _-]*shot|屏幕快照|屏幕截图|截屏|スクリーンショット|스크린샷|bildschirmfoto|capture d[’']écran|captura de pantalla|schermata|captura de (?:tela|ecrã)|schermafbeelding|снимок экрана|знімок екрана|zrzut ekranu|snímek obrazovky|skärmavbild|skærmbillede|skjermbilde|kuvakaappaus|ekran resmi|képernyőkép|captură de ecran|στιγμιότυπο οθόνης|لقطة شاشة|צילום מסך|ภาพหน้าจอ|ảnh chụp màn hình|tangkapan layar)(?=[\s_\d-]|$)/i;
+const CUSTOM_PREFIX_CACHE = new Map<string, RegExp>();
 
 interface ScreenshotFile {
   path: string;
@@ -18,6 +21,32 @@ interface PendingScreenshot {
   signature: string;
   stableSince: number;
   retryAt?: number;
+}
+
+export function getMacScreenshotNamePrefix(): string {
+  try {
+    return execFileSync(
+      "defaults",
+      ["read", "com.apple.screencapture", "name"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 1_500 }
+    ).trim();
+  } catch {
+    return "";
+  }
+}
+
+function customPrefixPattern(prefix: string): RegExp | null {
+  const trimmed = prefix.trim();
+  if (!trimmed) return null;
+  const cached = CUSTOM_PREFIX_CACHE.get(trimmed);
+  if (cached) return cached;
+  try {
+    const pattern = new RegExp(`^${trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=[\\s_\\d-]|$)`, "i");
+    CUSTOM_PREFIX_CACHE.set(trimmed, pattern);
+    return pattern;
+  } catch {
+    return null;
+  }
 }
 
 export function getMacScreenshotDirectories(desktopDirectory: string): string[] {
@@ -48,12 +77,18 @@ export class ScreenshotMonitor {
   private timer: NodeJS.Timeout | null = null;
   private readonly initializedDirectories = new Set<string>();
   private scanning = false;
+  private paused = false;
+  private clearPauseDepth = 0;
+  private importGeneration = 0;
+  private ignoreThrough = 0;
   private readonly onIssue: (issue: string | null) => void;
+  private readonly customPrefixPattern: RegExp | null;
 
-  constructor(directories: string[], importScreenshot: (path: string) => Promise<void>, onIssue: (issue: string | null) => void = () => undefined) {
+  constructor(directories: string[], importScreenshot: (path: string) => Promise<void>, onIssue: (issue: string | null) => void = () => undefined, customPrefix = "") {
     this.directories = [...new Set(directories.map((directory) => resolve(directory)))];
     this.importScreenshot = importScreenshot;
     this.onIssue = onIssue;
+    this.customPrefixPattern = customPrefixPattern(customPrefix);
   }
 
   start(): void {
@@ -68,9 +103,26 @@ export class ScreenshotMonitor {
     this.timer = null;
   }
 
+  pauseForClear(): void {
+    this.clearPauseDepth++;
+    this.paused = true;
+    this.importGeneration++;
+  }
+
+  resumeAfterClear(): void {
+    if (this.clearPauseDepth === 0) return;
+    this.clearPauseDepth--;
+    if (this.clearPauseDepth > 0) return;
+    this.ignoreThrough = Date.now();
+    this.pending.clear();
+    this.paused = false;
+    this.importGeneration++;
+  }
+
   async scanNow(): Promise<void> {
-    if (this.scanning) return;
+    if (this.scanning || this.paused) return;
     this.scanning = true;
+    const importGeneration = this.importGeneration;
     try {
       const files = new Map<string, ScreenshotFile>();
       const scannedDirectories = new Set<string>();
@@ -82,10 +134,10 @@ export class ScreenshotMonitor {
           scannedDirectories.add(directory);
           const firstScan = !this.initializedDirectories.has(directory);
           for (const entry of entries) {
-            if (!entry.isFile() || !isScreenshotImage(entry.name)) continue;
+            if (!entry.isFile() || !isScreenshotImage(entry.name, this.customPrefixPattern)) continue;
             const path = join(directory, entry.name);
             try {
-              const info = await stat(path);
+              const info = await withTimeout(stat(path), FILE_OPERATION_TIMEOUT_MS, "Screenshot file check timed out");
               const file = {
                 path,
                 modifiedAt: info.mtimeMs,
@@ -104,10 +156,16 @@ export class ScreenshotMonitor {
       }
 
       const now = Date.now();
+      if (this.paused || importGeneration !== this.importGeneration) return;
 
       const candidates: ScreenshotFile[] = [];
       for (const file of files.values()) {
         if (this.handled.get(file.path) === file.signature) continue;
+        if (file.modifiedAt <= this.ignoreThrough) {
+          this.handled.set(file.path, file.signature);
+          this.pending.delete(file.path);
+          continue;
+        }
         const pending = this.pending.get(file.path);
         if (!pending || pending.signature !== file.signature) {
           this.pending.set(file.path, { signature: file.signature, stableSince: now });
@@ -118,6 +176,7 @@ export class ScreenshotMonitor {
 
       let importError = false;
       for (const file of candidates.sort((left, right) => left.modifiedAt - right.modifiedAt)) {
+        if (this.paused || importGeneration !== this.importGeneration) break;
         try {
           await this.importScreenshot(file.path);
           this.handled.set(file.path, file.signature);
@@ -142,6 +201,7 @@ export class ScreenshotMonitor {
   }
 }
 
-export function isScreenshotImage(fileName: string): boolean {
-  return SCREENSHOT_PREFIX.test(fileName) && SUPPORTED_SCREENSHOT_EXTENSIONS.has(extname(fileName).toLowerCase());
+export function isScreenshotImage(fileName: string, customPrefix: RegExp | null = null): boolean {
+  return SUPPORTED_SCREENSHOT_EXTENSIONS.has(extname(fileName).toLowerCase()) &&
+    (SCREENSHOT_PREFIX.test(fileName) || Boolean(customPrefix?.test(fileName)));
 }

@@ -83,7 +83,8 @@ app.whenReady().then(async () => {
     assert.equal(await evaluate('Array.from(document.querySelectorAll(".entry-preview")).some(e => e.textContent === "保存")'), true);
     assert.equal(await evaluate('Array.from(document.querySelectorAll(".module-tab")).every(b => Array.from(b.children).every(c => c.getBoundingClientRect().right <= b.getBoundingClientRect().right + 1))'), true);
     assert.equal(await evaluate('getComputedStyle(document.querySelector(".gpaster-brand-image")).filter'), dark ? 'brightness(0) invert(1)' : 'none');
-    assert.equal(await evaluate('getComputedStyle(document.querySelector(".history-thumb")).filter'), 'none');
+    assert.equal(await evaluate('document.querySelectorAll(".history-thumb").length'), 0);
+    assert.equal(await evaluate('document.querySelector(".module-tab .tab-count").textContent'), String(history.length));
     await snapshot(`${lang}-${theme}-history.png`);
     assert.equal(await evaluate('getComputedStyle(document.querySelector(".module-tab.active")).backgroundColor'), dark ? 'rgb(32, 35, 43)' : 'rgb(255, 255, 255)');
     console.log(`PASS ${lang}/${theme}: labels, tray, native background, brand contrast, layout and original content`);
@@ -93,9 +94,9 @@ app.whenReady().then(async () => {
     await evaluate(`{ const input = document.querySelector('.search-wrap input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(query)}); input.dispatchEvent(new Event('input', {bubbles:true})); }`);
   };
   await search('图片');
-  await waitFor(() => evaluate('document.querySelectorAll(".history-thumb").length === 1 && document.querySelectorAll(".entry-preview").length === 1'), 'original image keyword search');
+  await waitFor(() => evaluate('document.querySelectorAll(".history-thumb").length === 0 && document.querySelectorAll(".entry-preview").length === 0'), 'original image keyword excluded from clipboard');
   await search('Image');
-  await waitFor(() => evaluate('document.querySelectorAll(".history-thumb").length === 1 && document.querySelectorAll(".entry-preview").length === 1'), 'localized image keyword search');
+  await waitFor(() => evaluate('document.querySelectorAll(".history-thumb").length === 0 && document.querySelectorAll(".entry-preview").length === 0'), 'localized image keyword excluded from clipboard');
   await search('');
   await evaluate('document.querySelectorAll(".module-tab")[1].click()');
   await waitFor(() => evaluate('Boolean(document.querySelector(".phrase-list"))'), 'phrases');
@@ -106,7 +107,7 @@ app.whenReady().then(async () => {
   await search('Uncategorized');
   await waitFor(() => evaluate('document.querySelectorAll(".phrase-meta").length === 1 && document.querySelector(".phrase-meta").textContent === "Uncategorized"'), 'localized category keyword search');
   await search('');
-  console.log('PASS English UI search matches original and localized image/category labels');
+  console.log('PASS clipboard search excludes images; phrase search matches original and localized category labels');
   await snapshot('en-dark-phrases.png');
   await evaluate('document.querySelector(".module-toolbar .primary-button").click()');
   await waitFor(() => evaluate('Boolean(document.querySelector(".phrase-dialog"))'), 'phrase editor');
@@ -129,7 +130,8 @@ app.whenReady().then(async () => {
   await waitFor(() => evaluate('document.querySelectorAll(".image-preview-button").length === 1'), 'screenshot original keyword search');
   await search('');
   await snapshot('en-dark-screenshots.png');
-  await evaluate('document.querySelector(".image-preview-button").click()');
+  assert.equal(await evaluate('getComputedStyle(document.querySelector(".image-preview-button img")).filter'), 'none');
+  await evaluate('document.querySelector(".image-preview-button").dispatchEvent(new MouseEvent("contextmenu", {bubbles:true,cancelable:true,button:2}))');
   await waitFor(() => evaluate('Boolean(document.querySelector(".image-dialog"))'), 'image preview');
   assert.equal(await evaluate('document.querySelector(".image-dialog").getAttribute("aria-label")'), 'Image preview');
   assert.equal(await evaluate('getComputedStyle(document.querySelector(".image-dialog")).backgroundColor'), 'rgba(27, 30, 31, 0.96)');

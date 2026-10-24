@@ -38,6 +38,14 @@ function canonicalImageType(type: string): string {
   return NATIVE_TYPES[normalized] ?? normalized;
 }
 
+export function hasClipboardImagePayload(items: readonly ImageClipboardItem[]): boolean {
+  return items.some(item => item.types.some(type => IMAGE_TYPES.includes(canonicalImageType(type))));
+}
+
+export function isClipboardImageFilePath(path: string): boolean {
+  return IMAGE_EXTENSIONS.has(extname(path).toLowerCase());
+}
+
 /** A lazy pasteboard provider must not leave image capture locked indefinitely. */
 async function readPayload<T>(operation: () => Promise<T>): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
@@ -72,7 +80,8 @@ function sourceLimit(type: string): number {
 /** Try all representations before rejecting an image, rather than just the first. */
 export async function readImageItems(
   items: ImageClipboardItem[], previousHash: string,
-  decode: (source: Buffer) => Promise<DecodedImage | null>
+  decode: (source: Buffer) => Promise<DecodedImage | null>,
+  allowFileUrlFallback = true
 ): Promise<ClipboardImageResult | null> {
   let sawImage = false;
   let limitError: ImageSizeError | undefined;
@@ -104,7 +113,8 @@ export async function readImageItems(
       }
     }
     // Finder's Copy puts file references on the pasteboard, not image bytes.
-    for (const referenceType of item.types.filter(type => canonicalImageType(type) === "text/uri-list")) {
+    for (const referenceType of allowFileUrlFallback
+      ? item.types.filter(type => canonicalImageType(type) === "text/uri-list") : []) {
       let blob: unknown;
       try { blob = await readPayload(() => item.getType(referenceType)); } catch { continue; }
       if (!isBlob(blob) || blob.size > 64 * 1024) continue;

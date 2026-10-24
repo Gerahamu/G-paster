@@ -8,9 +8,9 @@
 
 一个常驻 macOS 菜单栏的轻量剪贴板工具。<br />剪贴板、常用语、截图中转站，在一个紧凑面板里接着用。
 
-![版本 0.1.7](https://img.shields.io/badge/version-0.1.7-262626?style=flat-square&labelColor=707786) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-707786?style=flat-square&labelColor=20222a) ![本地存储](https://img.shields.io/badge/data-local%20only-707786?style=flat-square&labelColor=20222a)
+![Mac v0.999](https://img.shields.io/badge/Mac-v0.999-262626?style=flat-square&labelColor=707786) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-707786?style=flat-square&labelColor=20222a) ![本地存储](https://img.shields.io/badge/data-local%20only-707786?style=flat-square&labelColor=20222a)
 
-[下载 macOS App](https://github.com/Gerahamu/G-paster/releases/download/v0.1.7/G-paster-v0.1.7-macos-arm64.zip) · [版本更新](https://github.com/Gerahamu/G-paster/releases/tag/v0.1.7) · [开始使用](#开始使用) · [参与开发](#开发与构建)
+[下载 Mac v0.999](https://github.com/Gerahamu/G-paster/releases/tag/v0.999) · [本次验证](docs/release-validation-v0.999.md) · [版本更新](CHANGELOG.md) · [开始使用](#开始使用) · [参与开发](#开发与构建)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/readme/hero-dark.png" />
@@ -21,6 +21,30 @@
 <sub>界面示意使用虚构内容，不包含真实剪贴板数据。</sub>
 
 </div>
+
+<br />
+
+## Mac v0.999 · macOS Apple Silicon
+
+**应用内部版本 0.999.0，Git 标签 `v0.999`。** 包含 16:10 双列截图画廊、完整等比预览、图片常用语、文件历史及此前 0.9.0 的性能和可靠性修复。截图多选拖移结束、释放鼠标后自动收起窗口并清空选择；取消拖移也会清空，无法确认第三方输入框是否接收成功。
+
+[下载 macOS arm64 ZIP](https://github.com/Gerahamu/G-paster/releases/download/v0.999/G-paster-v0.999-macos-arm64.zip) · [SHA256SUMS](https://github.com/Gerahamu/G-paster/releases/download/v0.999/SHA256SUMS.txt) · [验证范围](docs/release-validation-v0.999.md)
+
+> 本次公开提供的是 **ad-hoc 签名、未经 Apple 公证的 macOS 构建**，不是 Developer ID 签名的正式分发包。Gatekeeper 可能阻止打开；不提供 Intel Mac、Windows 或 Linux 安装包。已有 Windows 版本见 [v0.9.0 Release](https://github.com/Gerahamu/G-paster/releases/tag/v0.9.0)。
+
+<br />
+
+## 0.9.0 · 发布前质量修复
+
+**此前的本机 QA 版本 v0.9.0（v0.9）。** 本版本在 0.1.7 的基础上处理了最终质量审计发现的问题，并保留现有界面布局与本地数据格式。
+
+| 可靠性 | 性能 | 数据与文档 |
+| :--- | :--- | :--- |
+| 完善 renderer 崩溃、加载失败和无响应提示；文件读取增加超时；损坏图片显示占位并可删除；损坏的本地 JSON 会保留原文件后恢复启动。 | 文本轮询调整为 180 ms；图片/文件 payload 在格式不变时最多每 750 ms 探测一次；截图和历史缩略图缩小，减少 IPC 与内存压力。 | 共享图片池计数更准确；图片导入前保护文字草稿；修复弹窗焦点与旧预览状态；README、CHANGELOG 与验证记录同步到 v0.9。 |
+
+> 本节记录此前未公开发布的 macOS 0.9.0 QA 构建；当前 macOS 下载请使用上方 Mac v0.999。
+
+[0.9.0 验证范围](docs/release-validation-v0.9.0.md) · [完整更新记录](CHANGELOG.md)
 
 <br />
 
@@ -54,9 +78,9 @@
 
 ## 三个模块，一个面板
 
-> 当前源码新增文件历史支持，尚未发布到下方 v0.1.7 下载包：文件、文件夹和一次多文件复制会作为一条历史保存；Finder 中复制 PNG/JPEG 文件时保存文件引用，图片数据本身仍按图片机制保存。
+> 当前源码包含文件历史支持：文件、文件夹和一次多文件复制会作为一条历史保存；原生 `public.file-url` 文件表示按文件历史保存；同时带有实际图片数据时图片按图片机制保存；仅 `text/uri-list` 的单张可解码图片可按图片保存。
 
-文件默认只记录路径，不复制本体。点击记录会恢复整组文件引用，可回到 Finder 粘贴；路径失效时会显示状态，不会部分恢复或删除原文件。文件与文本、链接共用原有的非图片历史上限，图片上限保持独立。一次最多接收 1000 个文件引用；副本预检最多遍历 10000 个目录项，后台复制设有 60 秒超时保护。
+文件默认只记录路径，不复制本体。点击非图片文件记录会恢复整组文件引用，可回到 Finder 粘贴；单张可解码图片文件以图片预览展示，点击复制图片、拖拽文件图标可导出原文件。路径失效时会显示状态，不会部分恢复或删除原文件。文件与文本、链接共用原有的非图片历史上限，图片上限保持独立。一次最多接收 1000 个文件引用；副本预检最多遍历 10000 个目录项，后台复制设有 60 秒超时保护。
 
 设置中的「保存文件副本」默认关闭，只影响之后收集的文件，不会在开启时批量复制旧记录。副本保存于应用数据目录的 `managed-files/`，单批上限 100 MiB、总副本上限 500 MiB（含保守的目录项开销），并检查磁盘剩余空间；超限或失败会保留引用并提示。删除、淘汰或清空历史会移除对应的应用副本，原始文件保持不变。文件夹内符号链接保持链接结构；单独的符号链接和含旧式资源分叉的文件保留引用，避免生成不完整副本。Finder 标签、ACL 等扩展元数据不属于当前副本模式的保存保证。
 
@@ -65,7 +89,7 @@
 | 剪贴板 | 常用语 | 截图中转站 |
 | :--- | :--- | :--- |
 | **找回刚刚复制的内容** | **少打一次重复的文字** | **让图片流转更顺手** |
-| 自动记录文本、HTTP / HTTPS 链接、图片及文件引用；搜索、重新复制、单条删除或清空记录。 | 创建、编辑、分类和搜索常用语，点击即可复制；也可以从文本历史直接保存。 | 收集复制的图片和 macOS 新截图；预览、收藏、重新复制、拖出图片或另存本地。 |
+| 自动记录文本、HTTP / HTTPS 链接、图片及文件引用；搜索、重新复制、单条删除或清空记录。 | 创建、编辑、分类和搜索常用语，点击即可复制；也可以从文本历史直接保存。 | 收集复制的图片和 macOS 新截图；预览、重新复制、拖出图片或另存本地。 |
 | 文本、链接和文件批次默认共用 **300 条**上限，可在设置中修改。 | 常用语独立持久化保存。 | 图片与截图默认合计 **10 张**，可在设置中修改。 |
 
 ### 用完即收，随时再开
@@ -88,13 +112,13 @@
 
 `Control+C` 是当前 macOS 默认全局快捷键，可能与终端的中断操作或其他软件冲突。标题栏齿轮或菜单栏「设置」可更换快捷键、恢复默认和设置开机启动；如快捷键注册失败，可通过菜单栏打开面板。Windows 源码中的默认快捷键为 `Control+Shift+G`，该平台尚未完成发布验证。
 
-保留数量输入后需点击「保存保留数量」。降低上限前需要确认：下次收集或启动时，最旧记录会按新上限淘汰，收藏图片也不豁免；常用语不受影响。默认数量可一键恢复。设置保存在独立的 `preferences.json`，不更改历史或常用语的数据格式。
+保留数量修改后自动保存（停止输入 500 ms 或离开设置页时）。降低上限后，下次收集或启动时最旧记录会按新上限淘汰；常用语不受影响。默认数量可一键恢复。设置保存在独立的 `preferences.json`，不更改历史或常用语的数据格式。
 
 开机启动使用系统登录项，由用户主动开启；需要系统批准时，设置页会显示提示。开发模式禁用此项，避免把 Electron 开发进程注册为登录项。当前 macOS 包尚未经过 Apple 公证，系统可能限制登录项注册；以设置页读取的实际状态为准。实际注销／登录流程仍需真机验证。参见 [Electron 登录项说明](https://www.electronjs.org/docs/latest/api/app#appsetloginitemsettingssettings-macos-windows)。
 
 macOS 截图监控读取桌面及系统配置的截图保存目录，在应用运行时收集新生成、符合截图文件名规则的图片，等待文件写入稳定后再导入。它不是对所有文件夹的图片扫描，也不会自动导入启动前的旧截图。原始截图文件保持原样；应用内保存的是独立图片副本。
 
-复制到剪贴板的普通图片数据也会进入截图中转站。v0.1.7 发布版会从 Finder 图片文件引用读取图片，当前源码已将这类操作改为文件历史。macOS 的 TIFF、HEIC 等图片表示会先转为 PNG 保存；当前版本不对图像内容做语义识别。
+复制到剪贴板的图片进入剪贴板页；只有截图目录中新生成的截图进入截图页。Finder 仅提供文件引用时归入文件历史；同时提供可解码图片数据时图片优先。macOS 的 TIFF、HEIC 等图片表示会先转为 PNG 保存；当前版本不对图像内容做语义识别。
 
 Photo Booth 可能提供旧版 TIFF 与文件引用，而非标准 PNG。0.1.6 会尝试可读的图片表示及本机文件来源；源文件不可访问时，只要剪贴板仍含可解码图片数据，就能继续采集。仅有失效文件引用、尚未下载的云端原图或不支持的格式，仍需原文件可访问后重试。
 
@@ -108,28 +132,11 @@ Photo Booth 可能提供旧版 TIFF 与文件引用，而非标准 PNG。0.1.6 �
 
 ## 开始使用
 
-### 直接下载
+### 下载 Mac v0.999
 
-1. 下载 [G-paster v0.1.7 · macOS Apple Silicon](https://github.com/Gerahamu/G-paster/releases/download/v0.1.7/G-paster-v0.1.7-macos-arm64.zip)。
-2. 解压后将 `G-paster.app` 放入「应用程序」文件夹。更新已有版本时，先从菜单栏退出旧应用，再替换 `.app`。
-3. 打开应用，通过菜单栏图标或 <kbd>Control</kbd> + <kbd>C</kbd> 呼出面板；如快捷键冲突，可在设置中修改。
+从上方 Release 下载 ZIP，解压后将 `G-paster.app` 放入 Applications。本版本仅提供 **macOS Apple Silicon（arm64）**，使用 ad-hoc 签名，没有 Developer ID 签名或 Apple 公证。安装包元数据要求 macOS 13.0 或更高，本轮实测环境为 macOS 27.0.1 / arm64；Intel Mac、其他 macOS 版本、Windows 和 Linux 尚未完成本轮发布验证。
 
-发布包仅提供 **macOS Apple Silicon（arm64）**。安装包元数据要求 macOS 13.0 或更高，本轮实测环境为 macOS 27.0.1 / arm64；Intel Mac、其他 macOS 版本、Windows 和 Linux 尚未完成本轮发布验证。
-
-发布包使用 **ad-hoc 签名**并检查完整性，尚未经过 Developer ID 签名或 Apple 公证。若系统限制打开，请参阅下方说明。
-
-<details>
-<summary><strong>校验下载文件</strong></summary>
-
-从同一 [Release](https://github.com/Gerahamu/G-paster/releases/tag/v0.1.7) 下载 `SHA256SUMS.txt`，与压缩包放在同一文件夹，再执行：
-
-```bash
-shasum -a 256 -c SHA256SUMS.txt
-```
-
-成功时显示压缩包文件名及 `OK`。校验只能确认文件完整性，不代表 Apple 公证。
-
-</details>
+更新已有版本时，先从菜单栏退出旧应用，再替换 `.app`，随后通过菜单栏图标或 <kbd>Control</kbd> + <kbd>C</kbd> 呼出面板。本次提供 ZIP 和 `SHA256SUMS.txt`；Developer ID 签名、hardened runtime 和 Apple 公证尚未完成。
 
 ### 从源码启动
 
@@ -144,13 +151,19 @@ npm run dev
 
 启动后复制一段文字，通过菜单栏图标或 <kbd>Control</kbd> + <kbd>C</kbd> 打开面板，在「剪贴板」里搜索并点击复制，再切回其他应用粘贴。
 
+开发模式使用 `work/dev-user-data/` 作为独立 userData，不会读写正式应用数据。只运行 `electron .` 而不经过 `npm run dev` 时没有这层隔离，测试时应自行传入隔离目录。
+
 ### 构建自己的 macOS App
 
+本机 QA 构建（ad-hoc 签名）：
+
 ```bash
-npm run package:mac
+npm run package:mac:adhoc
 ```
 
-生成的应用位于 `work/packaged/G-paster-darwin-arm64/G-paster.app`。将它复制到「应用程序」文件夹后打开即可。打包脚本不会自动完成开发者签名或 Apple 公证。
+生成的应用位于 `work/packaged/G-paster-darwin-arm64/G-paster.app`，适合本地 QA，不可作为正式分发包。`npm run package:mac:unsigned` 只生成未签名产物。
+
+正式发布构建 `npm run package:mac` 需要 `GPASTER_MAC_IDENTITY`、公证凭据，并会执行 Developer ID 验证、公证票据验证和 Gatekeeper 评估。没有这些凭据时，使用本机 QA 构建。
 
 <details>
 <summary><strong>macOS 提示应用无法打开时</strong></summary>
@@ -175,12 +188,12 @@ G-paster 无需账户或云端服务，不向外部服务上传剪贴板内容�
 
 | 内容 | 本地文件 | 保留规则 |
 | :--- | :--- | :--- |
-| 文本、链接 | `history.json` | 与文件批次共用默认 300 条上限，可设置 1–1000 条；完全相同的文本去重，再次复制移到最前面 |
+| 文本、链接 | `history.json` | 与文件批次共用默认 300 条上限，可设置 1–1000 条，文本总量上限 32 MiB；完全相同的文本去重；内容切换后再次复制会移到最前面 |
 | 文件、文件夹 | `file-history.json`、可选的 `managed-files/` | 默认仅保存原始引用；一组有序路径作为一条记录参与去重和淘汰，删除历史不删除原始文件 |
 | 图片、截图 | `image-history.json`、`images/*.png` | 共用图片池，默认 10 张，可设置 1–100 张；按最近复制或收集时间保留，超出的旧记录及内部图片副本自动移除 |
 | 常用语 | `phrases.json` | 独立保存，支持相同内容的不同常用语 |
 
-**图片收藏用于标记，不会阻止自动淘汰。**「清空记录」会清空剪贴板历史与截图，包括收藏图片；常用语不受此操作影响。截图的外部原文件不会因此删除。
+**图片不设独立收藏标记。**「清空记录」会清空剪贴板历史与截图；常用语不受此操作影响。截图的外部原文件不会因此删除。
 
 存储采用原子写入、`.bak` 备份和损坏恢复机制。数据保存在本地，并不意味着已加密：剪贴板可能包含密码或其他敏感信息，当前版本没有敏感内容过滤和本地数据加密功能。
 
@@ -190,7 +203,7 @@ G-paster 无需账户或云端服务，不向外部服务上传剪贴板内容�
 - 渲染进程启用 `contextIsolation` 与 `sandbox`，关闭 `nodeIntegration`。
 - 通过带 TypeScript 类型约束的 preload API 暴露有限 IPC 操作。
 - 生产构建仅加载应用内的 `dist/index.html`；导航、重定向及 IPC 使用统一的受信页面校验。
-- 文本剪贴板轮询间隔为 180 ms，macOS 截图目录扫描间隔为 750 ms。
+- 文本剪贴板每 180 ms 检查一次；图片/文件 payload 在格式不变时最多每 750 ms 探测一次；macOS 截图目录扫描间隔为 750 ms。
 
 这些是当前实现的安全与运行机制，不代表已完成所有系统环境下的安全和长期稳定性验证。
 
@@ -210,13 +223,16 @@ G-paster 无需账户或云端服务，不向外部服务上传剪贴板内容�
 | `npm test` | 执行存储、受信页面、图片表示和截图监控回归测试 |
 | `npm run test:images:electron` | 在真实 Electron 中验证图片解码、存储、缩略图和截图导入（隔离数据，不修改系统剪贴板） |
 | `npm run test:images:app` | 用隔离数据和可控剪贴板输入，验证实际主进程、preload、UI、错误恢复与清空竞态 |
+| `npm run test:broken-image:app` | 用隔离数据验证缺失图片占位、不可复制和删除流程 |
 | `npm run test:files:app` | 用隔离数据验证文件批次、恢复、副本模式、失效路径、共享上限及清空竞态，不修改系统剪贴板 |
 | `npm run test:files:mac` | 可选原生 NSPasteboard 验证：需先关闭安装版，会暂时使用并恢复系统剪贴板；设置 `GPASTER_TEST_FINDER=1` 可进行 Finder 复制、粘贴人工配合验证 |
 | `npm run test:system:app` | 用隔离数据验证中英文、浅深色、原生菜单和未保存输入保留（不修改系统设置） |
 | `npm run test:settings:app` | 验证窗口开关、设置入口、快捷键录入与冲突回退；使用隔离数据和受控系统接口，不修改系统登录项 |
 | `npm run test:window:mac` | macOS 原生面板焦点、显示／隐藏、关闭及后台采集回归；完整跨 Spaces 操作另需人工验证 |
 | `npm run build` | 编译 Electron 主进程并构建前端 |
-| `npm run package:mac` | 生成 macOS arm64 应用 |
+| `npm run package:mac:adhoc` | 生成本机 QA 用 macOS arm64 应用并做 ad-hoc 签名 |
+| `npm run package:mac:unsigned` | 生成未签名 macOS arm64 应用（不可分发） |
+| `npm run package:mac` | 需要 Developer ID/公证凭据，生成并验证正式 macOS arm64 应用 |
 
 <details>
 <summary><strong>项目结构</strong></summary>
@@ -244,6 +260,6 @@ scripts/                开发启动及 macOS 后台应用配置
 
 [反馈问题](https://github.com/Gerahamu/G-paster/issues) · [浏览源码](https://github.com/Gerahamu/G-paster)
 
-<sub>当前版本 0.1.7 · macOS arm64 发布包 · 仓库尚未添加开源许可证</sub>
+<sub>当前版本 Mac v0.999（0.999.0）· macOS arm64 ad-hoc 构建 · 仓库尚未添加开源许可证</sub>
 
 </div>

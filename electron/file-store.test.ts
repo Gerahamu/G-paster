@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, open, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, open, readFile, readdir, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 import { FileStore, FILE_COPY_BATCH_BYTES, FILE_COPY_TOTAL_BYTES } from "./file-store";
-import { fileReferenceKey, fileUriList, NATIVE_FILE_URL, readFileItems } from "./clipboard-files";
+import { fileReferenceKey, fileUriList, imageFileReferenceKey, NATIVE_FILE_URL, readFileItems } from "./clipboard-files";
 
 const item = (data: Record<string, string>) => ({ types: Object.keys(data), getType: async (type: string) => new Blob([data[type]]) });
 
@@ -20,6 +20,20 @@ test("file clipboard parsing preserves ordered batches and prefers the native fi
   assert.equal(await readFileItems([item({ "text/uri-list": "https://example.com/report.pdf\r\n# comment" })]), null);
   await assert.rejects(readFileItems([item({ [NATIVE_FILE_URL]: "file:///tmp/%invalid" })]), /无法读取/);
   await assert.rejects(readFileItems([item({ "text/uri-list": Array.from({ length: 1001 }, (_, i) => `file:///tmp/${i}`).join("\r\n") })]), /1000/);
+});
+
+test("image file reference identity changes when content at the same path is replaced", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "gpaster-image-file-key-"));
+  try {
+    const path = join(directory, "image.png");
+    await writeFile(path, "first image");
+    const reference = fileReferenceKey([path]);
+    const first = await imageFileReferenceKey(path, reference);
+    assert.equal(await imageFileReferenceKey(path, reference), first);
+    await writeFile(path, "other image");
+    await utimes(path, new Date(1_700_000_001_000), new Date(1_700_000_001_000));
+    assert.notEqual(await imageFileReferenceKey(path, reference), first);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 test("file references deduplicate as whole selections, persist across restart, and never copy or delete originals", async () => {

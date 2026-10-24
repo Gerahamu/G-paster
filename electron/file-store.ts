@@ -7,6 +7,8 @@ import { pipeline } from "node:stream/promises";
 import type { ClipboardFileEntry, FileCopyState } from "../src/shared/contracts";
 import { readJsonArray, writeJsonArray } from "./atomic-json";
 import { fileReferenceKey, MAX_FILE_REFERENCES } from "./clipboard-files";
+import { FILE_OPERATION_TIMEOUT_MS } from "./image-limits";
+import { withTimeout } from "./async-timeout";
 
 export const FILE_COPY_BATCH_BYTES = 100 * 1024 * 1024;
 export const FILE_COPY_TOTAL_BYTES = 500 * 1024 * 1024;
@@ -59,7 +61,8 @@ function validEntry(value: unknown): value is StoredFileEntry {
   const entry = value as StoredFileEntry;
   return typeof entry.id === "string" && /^[\w-]+$/.test(entry.id) && entry.kind === "file" &&
     typeof entry.hash === "string" && typeof entry.copyToken === "string" &&
-    Number.isFinite(entry.createdAt) && Number.isFinite(entry.copiedAt) &&
+    Number.isFinite(entry.createdAt) && entry.createdAt >= 0 && entry.createdAt <= 8.64e15 &&
+    Number.isFinite(entry.copiedAt) && entry.copiedAt >= 0 && entry.copiedAt <= 8.64e15 &&
     ["reference", "pending", "saved", "failed", "limit"].includes(entry.copyState) &&
     (entry.copyRoot === undefined || (typeof entry.copyRoot === "string" && COPY_ROOT.test(entry.copyRoot))) &&
     Array.isArray(entry.files) && entry.files.length > 0 && entry.files.length <= MAX_FILE_REFERENCES && entry.files.every(file =>
@@ -126,7 +129,10 @@ export class FileStore {
       }
       if (normalized.some(path => inside(this.copiesDirectory, path))) throw new Error("文件引用已失效，请从原始位置重新复制。");
       const files = await mapLimited(normalized, async originalPath => {
-        let info; try { info = await stat(originalPath); } catch { /* Keep unavailable references visible. */ }
+        let info;
+        try {
+          info = await withTimeout(stat(originalPath), FILE_OPERATION_TIMEOUT_MS, "File reference stat timed out");
+        } catch { /* Keep unavailable references visible. */ }
         return { originalPath, name: basename(originalPath) || "Root", isDirectory: info?.isDirectory() ?? false,
           extension: info?.isDirectory() ? "" : extname(originalPath).slice(1).toLowerCase(), size: info?.isFile() ? info.size : null };
       });
@@ -181,8 +187,15 @@ export class FileStore {
     return mapLimited(entry.files, async (file, index) => {
       const candidates = entry.copyRoot ? [join(this.copiesDirectory, entry.copyRoot, String(index), file.name), file.originalPath] : [file.originalPath];
       for (const path of candidates) {
-        try { const info = await stat(path); if (!info.isFile() && !info.isDirectory()) continue;
-          await access(path, constants.R_OK | (info.isDirectory() ? constants.X_OK : 0)); return path;
+        try {
+          const info = await withTimeout(stat(path), FILE_OPERATION_TIMEOUT_MS, "File reference check timed out");
+          if (!info.isFile() && !info.isDirectory()) continue;
+          await withTimeout(
+            access(path, constants.R_OK | (info.isDirectory() ? constants.X_OK : 0)),
+            FILE_OPERATION_TIMEOUT_MS,
+            "File reference access check timed out"
+          );
+          return path;
         } catch { /* Try the original reference if an owned copy is unavailable. */ }
       }
       return null;
@@ -297,7 +310,7 @@ export class FileStore {
   private async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
     if (!this.loadPromise) this.loadPromise = (async () => {
-      this.entries = (await readJsonArray(this.metadataPath)).filter(validEntry).sort((a, b) => b.copiedAt - a.copiedAt);
+      this.entries = (await readJsonArray(this.metadataPath, { recoverCorrupt: true })).filter(validEntry).sort((a, b) => b.copiedAt - a.copiedAt);
       const retained = new Set(this.entries.map(entry => entry.copyRoot));
       try { for (const name of await readdir(this.copiesDirectory)) if (OWNED_ROOT.test(name) && !retained.has(name)) {
         await rm(join(this.copiesDirectory, name), { recursive: true, force: true }).catch(() => undefined);

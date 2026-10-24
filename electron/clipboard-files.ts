@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
+import { stat } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ImageClipboardItem } from "./clipboard-images";
+import { FILE_OPERATION_TIMEOUT_MS } from "./image-limits";
+import { withTimeout } from "./async-timeout";
 
 const MAX_REFERENCE_BYTES = 1024 * 1024;
 export const MAX_FILE_REFERENCES = 1000;
@@ -17,8 +20,25 @@ export function isFileClipboardType(type: string): boolean {
   return FILE_TYPES.has(platformType(type));
 }
 
+export function isNativeFileUrlType(type: string): boolean {
+  return platformType(type) === "public.file-url";
+}
+
 export function fileReferenceKey(paths: readonly string[]): string {
   return createHash("sha256").update(JSON.stringify(paths)).digest("hex");
+}
+
+/** Keep path identity separate from image-content freshness for copied image files. */
+export async function imageFileReferenceKey(path: string, referenceKey: string): Promise<string> {
+  try {
+    const info = await withTimeout(stat(path, { bigint: true }), FILE_OPERATION_TIMEOUT_MS, "Image file reference check timed out");
+    if (!info.isFile()) return `${referenceKey}:unavailable`;
+    return createHash("sha256").update([
+      referenceKey, info.dev, info.ino, info.size, info.mtimeNs, info.ctimeNs
+    ].join("\0")).digest("hex");
+  } catch {
+    return `${referenceKey}:unavailable`;
+  }
 }
 
 export function fileUriList(paths: readonly string[]): string {

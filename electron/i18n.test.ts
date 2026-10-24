@@ -18,8 +18,14 @@ describe("system-driven language", () => {
   });
   it("formats labels without changing the values supplied by users", () => {
     assert.equal(translate("en", "图片 {width} × {height}", { width: 3840, height: 2160 }), "Image 3840 × 2160");
-    assert.equal(translate("zh", "最近 {count} / 10 张", { count: 0 }), "最近 0 / 10 张");
+    assert.equal(translate("zh", "当前 {count} 张，上限 {limit}", { count: 0, limit: 10 }), "当前 0 张，上限 10");
     assert.equal(translateMessage("en", "我的自定义分类"), "我的自定义分类");
+  });
+  it("localizes bounded clipboard and renderer recovery status messages", () => {
+    assert.match(translateMessage("en", "剪贴板文字读取或保存失败，请检查本地存储空间。稍后会自动重试。"), /Retrying shortly/);
+    assert.match(translateMessage("en", "文本过长（超过 200 万字符），本次未保存到历史记录。"), /2 million characters/);
+    assert.match(translateMessage("en", "界面未能恢复，请重新打开 G-paster。"), /Reopen G-paster/);
+    assert.match(translateMessage("en", "部分本地数据文件损坏，已保留原文件并以空记录启动。请检查数据目录或备份文件。"), /preserved/);
   });
   it("turns validation errors into translated messages without exposing IPC details", () => {
     const key = errorKey(new Error("Error invoking remote method 'phrase:create': Error: 分类名称过长"), "保存常用语失败。");

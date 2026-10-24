@@ -20,7 +20,7 @@ export class Preferences {
 
   async load(): Promise<void> {
     try {
-      const [value] = await readJsonArray(this.path);
+      const [value] = await readJsonArray(this.path, { recoverCorrupt: true });
       if (value && typeof value === "object" && "shortcut" in value) {
         this.shortcut = normalizeShortcut(value.shortcut, this.platform) ?? this.defaultShortcut;
       }

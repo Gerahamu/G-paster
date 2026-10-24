@@ -76,6 +76,18 @@ describe("HistoryStore", () => {
     await rename(filePath + ".bak", filePath);
   });
 
+  it("keeps the newest text entries within the byte budget", async () => {
+    const bounded = new HistoryStore(filePath, 10, 10);
+    await bounded.recordClipboardText("12345678", 1);
+    await bounded.recordClipboardText("abcdefghi", 2);
+    assert.deepEqual((await bounded.list()).map(entry => entry.content), ["abcdefghi"]);
+  });
+
+  it("drops persisted entries whose timestamps are outside the Date range", async () => {
+    await writeFile(filePath, JSON.stringify([{ id: "bad", content: "bad", kind: "text", createdAt: 1e300, copiedAt: 1e300 }]));
+    assert.deepEqual(await new HistoryStore(filePath).list(), []);
+  });
+
   it("recovers a damaged primary file from the last complete backup", async () => {
     await store.recordClipboardText("recover-me", 1);
     await writeFile(filePath, "{truncated", "utf8");

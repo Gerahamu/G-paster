@@ -76,19 +76,19 @@ test("configured retention limits affect capture, keep recent records and remove
   try {
     const historyPath = join(directory, "history.json"), imagePath = join(directory, "image-history.json");
     const text = new HistoryStore(historyPath, 4), images = new ImageStore(imagePath, 4);
-    let favorite;
+    let oldestImage;
     for (let i = 1; i <= 4; i++) {
       await text.recordClipboardText(String(i), i);
       const image = await images.record(Buffer.from(String(i)), 1, 1, i);
-      if (i === 1) { favorite = image; await images.toggleFavorite(image.id); }
+      if (i === 1) oldestImage = image;
     }
     text.configureLimit(2); images.configureLimit(2);
     assert.equal((await text.list()).length, 4); assert.equal((await images.list()).length, 4);
     await text.recordClipboardText("next", 5); await images.record(Buffer.from("next"), 1, 1, 5);
     assert.deepEqual((await text.list()).map(entry => entry.content), ["next", "4"]);
     assert.equal((await images.list()).length, 2);
-    assert.equal(await images.get(favorite!.id), undefined);
-    await assert.rejects(readFile(join(directory, "images", favorite!.fileName)), { code: "ENOENT" });
+    assert.equal(await images.get(oldestImage!.id), undefined);
+    await assert.rejects(readFile(join(directory, "images", oldestImage!.fileName)), { code: "ENOENT" });
     assert.equal((await new ImageStore(imagePath, 2).list()).length, 2);
     assert.equal((await new HistoryStore(historyPath, 2).list()).length, 2);
     images.configureLimit(5);

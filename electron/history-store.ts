@@ -3,6 +3,7 @@ import type { ClipboardEntry, ClipboardEntryKind } from "../src/shared/contracts
 import { readJsonArray, writeJsonArray } from "./atomic-json";
 
 export const MAX_HISTORY_ENTRIES = 300;
+export const MAX_HISTORY_TEXT_BYTES = 32 * 1024 * 1024;
 
 export function classifyContent(content: string): ClipboardEntryKind {
   try {
@@ -13,6 +14,10 @@ export function classifyContent(content: string): ClipboardEntryKind {
   }
 }
 
+function isTimestamp(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 8.64e15;
+}
+
 function isEntry(value: unknown): value is ClipboardEntry {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ClipboardEntry>;
@@ -20,8 +25,8 @@ function isEntry(value: unknown): value is ClipboardEntry {
     typeof candidate.id === "string" &&
     typeof candidate.content === "string" &&
     (candidate.kind === "text" || candidate.kind === "link") &&
-    typeof candidate.createdAt === "number" &&
-    typeof candidate.copiedAt === "number"
+    isTimestamp(candidate.createdAt) &&
+    isTimestamp(candidate.copiedAt)
   );
 }
 
@@ -32,7 +37,7 @@ export class HistoryStore {
   private mutationQueue: Promise<void> = Promise.resolve();
   private readonly filePath: string;
 
-  constructor(filePath: string, private limit = MAX_HISTORY_ENTRIES) {
+  constructor(filePath: string, private limit = MAX_HISTORY_ENTRIES, private textBudget = MAX_HISTORY_TEXT_BYTES) {
     this.filePath = filePath;
   }
 
@@ -61,7 +66,7 @@ export class HistoryStore {
         ? { ...existing, copiedAt }
         : { id: randomUUID(), content, kind: classifyContent(content), createdAt: copiedAt, copiedAt };
 
-      const next = [entry, ...this.entries.filter((candidate) => candidate.id !== entry.id)].slice(0, this.limit);
+      const next = this.trimToTextBudget([entry, ...this.entries.filter((candidate) => candidate.id !== entry.id)].slice(0, this.limit));
       await this.persist(next);
       this.entries = next;
       return { ...entry };
@@ -97,13 +102,25 @@ export class HistoryStore {
     });
   }
 
+  private trimToTextBudget(entries: ClipboardEntry[]): ClipboardEntry[] {
+    const kept: ClipboardEntry[] = [];
+    let bytes = 0;
+    for (const entry of entries) {
+      const size = Buffer.byteLength(entry.content, "utf8");
+      if (kept.length > 0 && bytes + size > this.textBudget) break;
+      kept.push(entry);
+      bytes += size;
+    }
+    return kept;
+  }
+
   private async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
     if (!this.loadPromise) {
       this.loadPromise = (async () => {
-        const entries = (await readJsonArray(this.filePath)).filter(isEntry);
+        const entries = (await readJsonArray(this.filePath, { recoverCorrupt: true })).filter(isEntry);
         entries.sort((left, right) => right.copiedAt - left.copiedAt);
-        this.entries = entries.slice(0, this.limit);
+        this.entries = this.trimToTextBudget(entries.slice(0, this.limit));
         this.loaded = true;
       })().finally(() => { this.loadPromise = null; });
     }

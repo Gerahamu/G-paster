@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
@@ -17,7 +17,7 @@ describe("ImageStore", () => {
 
   afterEach(async () => rm(directory, { recursive: true, force: true }));
 
-  it("deduplicates repeated images, keeps the newest 10 and persists favorites", async () => {
+  it("deduplicates repeated images and keeps the newest 10", async () => {
     const first = await store.record(Buffer.from("image-0"), 10, 10, 1);
     const duplicate = await store.record(Buffer.from("image-0"), 20, 10, 12);
     assert.equal(duplicate.id, first.id);
@@ -29,10 +29,37 @@ describe("ImageStore", () => {
     assert.equal((await store.list()).length, MAX_CLIPBOARD_IMAGES);
     assert.equal((await store.get(first.id)), undefined);
 
-    const newest = (await store.list())[0];
-    assert.equal(await store.toggleFavorite(newest.id), true);
+  });
+
+  it("tracks real image sources across deduplication and reload without duplicating bytes", async () => {
+    const bytes = Buffer.from("same-image-two-sources");
+    const copied = await store.record(bytes, 8, 6, 1, "clipboard");
+    assert.deepEqual(copied.sources, ["clipboard"]);
+    const screenshot = await store.record(bytes, 8, 6, 2, "screenshot");
+    assert.equal(screenshot.id, copied.id);
+    assert.deepEqual(screenshot.sources, ["clipboard", "screenshot"]);
+    assert.equal((await readdir(join(directory, "images"))).length, 1);
     const reloaded = new ImageStore(join(directory, "image-history.json"));
-    assert.equal((await reloaded.get(newest.id))?.isFavorite, true);
+    assert.deepEqual((await reloaded.get(copied.id))?.sources, ["clipboard", "screenshot"]);
+    screenshot.sources.length = 0;
+    assert.deepEqual((await store.get(copied.id))?.sources, ["clipboard", "screenshot"]);
+  });
+
+  it("keeps legacy images with unknown provenance intact until an actual source is observed", async () => {
+    const bytes = Buffer.from("legacy-image");
+    const image = await store.record(bytes, 8, 6, 1);
+    const metadata = join(directory, "image-history.json");
+    const entries = JSON.parse(await readFile(metadata, "utf8"));
+    delete entries[0].sources;
+    const legacyJson = JSON.stringify(entries);
+    await writeFile(metadata, legacyJson);
+    const reloaded = new ImageStore(metadata);
+    assert.deepEqual((await reloaded.get(image.id))?.sources, []);
+    assert.deepEqual(await reloaded.read(image.id), bytes);
+    assert.equal(await readFile(metadata, "utf8"), legacyJson);
+    const copied = await reloaded.record(bytes, 8, 6, 2, "clipboard");
+    assert.equal(copied.id, image.id);
+    assert.deepEqual(copied.sources, ["clipboard"]);
   });
 
   it("reads and deletes image files by opaque id", async () => {
@@ -41,6 +68,23 @@ describe("ImageStore", () => {
     assert.deepEqual(await store.read(image.id), bytes);
     assert.equal(await store.delete(image.id), true);
     assert.equal(await store.read(image.id), null);
+  });
+
+  it("surfaces failed image deletion and retries generated-file cleanup on clear", async () => {
+    const image = await store.record(Buffer.from("test-png-bytes"), 3, 4, 10);
+    const imagePath = join(directory, "images", image.fileName);
+    await rm(imagePath);
+    await mkdir(imagePath);
+    await writeFile(join(imagePath, "blocker"), "test");
+
+    await assert.rejects(store.delete(image.id));
+    assert.equal((await store.get(image.id))?.id, image.id);
+
+    await assert.rejects(store.clear());
+    assert.equal((await store.list()).length, 0);
+    await rm(imagePath, { recursive: true, force: true });
+    await store.clear();
+    assert.deepEqual(await readdir(join(directory, "images")), []);
   });
 
   it("rejects a damaged image file instead of returning corrupted clipboard data", async () => {
@@ -68,8 +112,8 @@ describe("ImageStore", () => {
     const metadata = join(directory, "image-history.json");
     await rename(metadata, metadata + ".bak");
     await mkdir(metadata);
-    await assert.rejects(store.toggleFavorite(first.id));
-    assert.equal((await store.get(first.id))?.isFavorite, false);
+    await assert.rejects(store.delete(first.id));
+    assert.equal((await store.get(first.id))?.id, first.id);
     await assert.rejects(store.record(Buffer.from("second"), 2, 2, 2));
     assert.equal((await store.list()).length, 1);
     await rm(metadata, { recursive: true });
@@ -103,6 +147,35 @@ describe("PhraseStore", () => {
   it("rejects blank phrase text and defaults an empty category", async () => {
     await assert.rejects(store.create({ text: "  ", category: "" }));
     assert.equal((await store.create({ text: "hello", category: " " })).category, "未分类");
+  });
+
+  it("keeps saved image phrases independent of image history and reloads their bytes", async () => {
+    const imageBytes = Buffer.from("dedicated-phrase-image-bytes");
+    const phrase = await store.createImage(imageBytes, 120, 80, "素材", 30);
+    assert.equal(phrase.kind, "image");
+    assert.deepEqual(phrase.image, { width: 120, height: 80 });
+    assert.deepEqual(await store.readImage(phrase.id), imageBytes);
+
+    const reloaded = new PhraseStore(join(directory, "phrases.json"));
+    assert.deepEqual(await reloaded.readImage(phrase.id), imageBytes);
+    assert.equal(await reloaded.delete(phrase.id), true);
+    assert.equal(await reloaded.readImage(phrase.id), null);
+    assert.deepEqual(await reloaded.list(), []);
+  });
+
+  it("restores an image asset when phrase metadata deletion cannot be persisted", async () => {
+    const imageBytes = Buffer.from("rollback-image-bytes");
+    const phrase = await store.createImage(imageBytes, 12, 8, "测试", 40);
+    const metadata = join(directory, "phrases.json");
+    await rename(metadata, metadata + ".bak");
+    await mkdir(metadata);
+
+    await assert.rejects(store.delete(phrase.id));
+    assert.deepEqual(await store.readImage(phrase.id), imageBytes);
+    assert.equal((await store.list()).some(item => item.id === phrase.id), true);
+
+    await rm(metadata, { recursive: true });
+    await rename(metadata + ".bak", metadata);
   });
 
   it("serializes concurrent creation and keeps old state on disk failure", async () => {

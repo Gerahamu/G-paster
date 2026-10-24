@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const npmExec = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -57,8 +57,13 @@ try {
   const vite = start(npmExec, ["run", "dev:renderer"]);
   await waitForRenderer(vite);
   const electronPath = resolve(projectRoot, "node_modules", "electron", "cli.js");
+  const devUserData = join(projectRoot, "work", "dev-user-data");
   const desktop = start(process.execPath, [electronPath, "."], {
-    env: { ...process.env, VITE_DEV_SERVER_URL: "http://127.0.0.1:5173" }
+    env: {
+      ...process.env,
+      VITE_DEV_SERVER_URL: "http://127.0.0.1:5173",
+      GPASTER_DEV_USER_DATA: devUserData
+    }
   });
   desktop.on("exit", (code) => shutdown(code ?? 0));
 } catch (error) {
