@@ -134,6 +134,23 @@ app.whenReady().then(async () => {
   assert.equal(hideCalls, 3);
   window.hide = originalHide;
   console.log('PASS multi-image, direct single-image and checked single-image drags hide and clear after release; invalid and non-dismiss calls preserved');
+  await evaluate('document.querySelectorAll(".image-selection")[0].click()');
+  const clipboardPng = nativeImage.createFromBitmap(Buffer.alloc(8 * 6 * 4, 255), {width:8,height:6}).toPNG();
+  items = [new ClipboardItem({'image/png':new Blob([new Uint8Array(clipboardPng)])})];
+  await waitFor(async () => (await list()).some(item => item.kind === 'image' && item.sources.includes('clipboard')), 'synthetic clipboard image');
+  items = [];
+  await evaluate('document.querySelectorAll(".module-tab")[0].click()');
+  const hidesBeforeClipboardDrag = hideCalls;
+  window.hide = () => { hideCalls++; originalHide(); };
+  await evaluate('document.querySelector(".history-thumb-button").dispatchEvent(new Event("dragstart", {bubbles:true,cancelable:true}))');
+  await waitFor(() => Boolean(finishGesture), 'clipboard drag uses completion monitor');
+  assert.equal(hideCalls, hidesBeforeClipboardDrag);
+  finishGesture(null); finishGesture = undefined;
+  await waitFor(() => hideCalls > hidesBeforeClipboardDrag, 'clipboard drag hides after release');
+  await evaluate('document.querySelectorAll(".module-tab")[2].click()');
+  assert.equal(await evaluate('document.querySelectorAll(".image-selection:checked").length'), 0, 'clipboard drag clears screenshot selection');
+  window.hide = originalHide;
+  console.log('PASS clipboard image drag hides and clears retained screenshot selection');
   for (const action of ['close', 'blur', 'reopen']) {
     await evaluate('document.querySelectorAll(".image-selection")[1].click()');
     await waitFor(() => evaluate('document.querySelectorAll(".image-card.selected").length > 0'), 'selection before lifecycle action');

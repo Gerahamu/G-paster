@@ -54,7 +54,7 @@ const bridge: GpasterBridge = {
   copyHistory: async (id) => (await ipcRenderer.invoke("history:copy", id)) as boolean,
   previewImage: async (id) => (await ipcRenderer.invoke("image:preview", id)) as string | null,
   startImageDrag: async (id, dismissAfterDrag = false) => (await ipcRenderer.invoke("image:drag-start", id, dismissAfterDrag)) as boolean,
-  startFileDrag: async (id) => (await ipcRenderer.invoke("file:drag-start", id)) as boolean,
+  startFileDrag: async (id, dismissAfterDrag = false) => (await ipcRenderer.invoke("file:drag-start", id, dismissAfterDrag)) as boolean,
   saveImage: async (id) => (await ipcRenderer.invoke("image:save", id)) as boolean,
   listPhrases: async () => (await ipcRenderer.invoke("phrase:list")) as Awaited<ReturnType<GpasterBridge["listPhrases"]>>,
   createPhrase: async (draft: QuickPhraseDraft) => (await ipcRenderer.invoke("phrase:create", draft)) as Awaited<ReturnType<GpasterBridge["createPhrase"]>>,

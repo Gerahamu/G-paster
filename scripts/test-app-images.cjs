@@ -23,6 +23,16 @@ const childProcess = require('node:child_process');
 const originalExecFileSync = childProcess.execFileSync;
 childProcess.execFileSync = (file, args, options) => file === 'defaults' && args?.[1] === 'com.apple.screencapture'
   ? screenshots : originalExecFileSync(file, args, options);
+let releaseGesture, holdGesture = false;
+const originalExecFile = childProcess.execFile;
+childProcess.execFile = (file, args, options, callback) => {
+  if (file === '/usr/bin/osascript' && args?.includes('JavaScript')) {
+    if (holdGesture) releaseGesture = () => callback(null);
+    else setTimeout(() => callback(null), 25);
+    return { kill() {} };
+  }
+  return originalExecFile(file, args, options, callback);
+};
 let items = [], text = '';
 clipboard.read = async () => items;
 clipboard.has = async type => items.some(item => item.types.includes(type));
@@ -91,30 +101,30 @@ app.whenReady().then(async () => {
   let clipboardHideCalls = 0;
   const hideBeforeClipboardCopy = window.hide.bind(window);
   window.hide = () => { clipboardHideCalls++; hideBeforeClipboardCopy(); };
-  await evaluate('document.querySelector(".history-thumb-button").click()');
-  await waitFor(() => evaluate('Boolean(document.querySelector(".image-dialog"))'), 'clipboard thumbnail click opens preview');
-  assert.equal(await evaluate('document.querySelector(".large-image-wrap img").src'), preview);
-  assert.equal(clipboardHideCalls, 0);
-  assert.equal(items.length, 0);
-  await evaluate('document.querySelector(".image-dialog .dialog-heading button").click(); document.querySelector(".history-item .entry-content").click()');
-  await waitFor(() => evaluate('Boolean(document.querySelector(".image-dialog"))'), 'clipboard image content click opens preview');
-  assert.equal(await evaluate('document.querySelector(".large-image-wrap img").src'), preview);
-  await evaluate('document.querySelector(".image-dialog .dialog-heading button").click()');
   for (const selector of ['.history-thumb-button', '.history-item .entry-content']) {
-    dragged = undefined;
+    items = [];
+    const beforeHide = clipboardHideCalls;
+    await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+    await waitFor(() => clipboardHideCalls > beforeHide && items.some(item => item.types.includes('image/png')), 'clipboard image click copies then hides');
+    assert.equal(await evaluate('Boolean(document.querySelector(".image-dialog"))'), false);
+    const pngBlob = await items[0].getType('image/png');
+    assert.deepEqual(Buffer.from(await pngBlob.arrayBuffer()), Buffer.from(preview.split(',')[1], 'base64'));
+    items = []; holdGesture = true; dragged = undefined;
+    const beforeDragHide = clipboardHideCalls;
     await evaluate(`{
       const target = document.querySelector(${JSON.stringify(selector)});
-      if (!target.draggable) throw new Error('Image target must be draggable');
       target.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true}));
       target.dispatchEvent(new Event('dragstart', {bubbles:true,cancelable:true}));
       target.dispatchEvent(new MouseEvent('click', {bubbles:true,detail:1}));
     }`);
-    await waitFor(() => dragged?.file, 'clipboard image native-file request');
-    assert.equal(dragged.files, undefined, 'single image uses the original file payload');
+    await waitFor(() => dragged?.file && Boolean(releaseGesture), 'clipboard drag waits for release');
+    assert.equal(dragged.files, undefined);
     assert.deepEqual(await readFile(dragged.file), Buffer.from(preview.split(',')[1], 'base64'));
-    assert.equal(await evaluate('Boolean(document.querySelector(".image-dialog"))'), false, 'drag cannot trigger preview');
-    assert.equal(clipboardHideCalls, 0, 'drag cannot trigger copy/hide');
-    assert.equal(items.length, 0);
+    assert.equal(clipboardHideCalls, beforeDragHide, 'do not hide before mouse release');
+    assert.equal(items.length, 0, 'drag-click does not copy');
+    assert.equal(await evaluate('Boolean(document.querySelector(".image-dialog"))'), false);
+    releaseGesture(); releaseGesture = undefined; holdGesture = false;
+    await waitFor(() => clipboardHideCalls > beforeDragHide, 'clipboard drag hides after release');
   }
   assert.equal(await evaluate('document.querySelector(".history-thumb").draggable'), false);
   await evaluate('document.querySelector(".history-item .copy-button").click()');
@@ -182,9 +192,9 @@ app.whenReady().then(async () => {
   };
   try {
     await waitFor(() => evaluate('document.querySelectorAll("li[data-kind=image] .history-thumb-button").length === 2'), 'two clipboard preview targets');
-    await evaluate('document.querySelectorAll("li[data-kind=image] .history-thumb-button")[1].click()');
+    await evaluate('document.querySelectorAll("li[data-kind=image] .history-thumb-button")[1].dispatchEvent(new MouseEvent("contextmenu", {bubbles:true,cancelable:true,button:2}))');
     await waitFor(() => previewEntered, 'older preview read held');
-    await evaluate('document.querySelectorAll("li[data-kind=image] .history-thumb-button")[0].click()');
+    await evaluate('document.querySelectorAll("li[data-kind=image] .history-thumb-button")[0].dispatchEvent(new MouseEvent("contextmenu", {bubbles:true,cancelable:true,button:2}))');
     await waitFor(() => evaluate('Boolean(document.querySelector(".large-image-wrap img"))'), 'latest preview completes independently');
     const latestPreview = await evaluate('document.querySelector(".large-image-wrap img").src');
     assert.notEqual(latestPreview, preview);
@@ -216,7 +226,7 @@ app.whenReady().then(async () => {
       bounds.right <= frame.right && bounds.bottom <= Math.min(frame.bottom, button.bottom);
   })`), true, 'whole image viewport fits inside visible card and preview button');
   await delay(200);
-  await writeFile(join(root, 'work', 'image-multiselect-preview.png'), (await window.webContents.capturePage(undefined, { stayHidden: true })).toPNG());
+  await writeFile(resolve(__dirname, '..', 'work', 'image-multiselect-preview.png'), (await window.webContents.capturePage(undefined, { stayHidden: true })).toPNG());
   await evaluate('document.querySelector(".image-preview-button").dispatchEvent(new Event("dragstart", { bubbles: true, cancelable: true }))');
   await waitFor(() => dragged?.files?.length === 2, 'two native file drag paths');
   assert.equal(new Set(dragged.files).size, 2);
@@ -225,6 +235,8 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`window.gpaster.startImageDrag([${JSON.stringify(captured.id)}, "missing-id"])`), false);
   assert.equal(dragged, undefined);
   assert.equal(await evaluate('window.gpaster.startImageDrag([])'), false);
+  await waitFor(() => evaluate('document.querySelectorAll(".image-card.selected").length === 0'), 'drag release clears multi-selection');
+  await evaluate('document.querySelectorAll(".image-selection")[0].click(); document.querySelectorAll(".image-selection")[1].click()');
   await evaluate('document.querySelector(".screenshot-footer .settings-link").click()');
   assert.equal(await evaluate('document.querySelectorAll(".image-card.selected").length'), 0);
   assert.equal(await evaluate(`window.gpaster.startImageDrag(${JSON.stringify(captured.id)})`), true);

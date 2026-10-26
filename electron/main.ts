@@ -265,6 +265,18 @@ function hideWindow(): void {
   }
 }
 
+async function dismissImageDragWindow(sender: Electron.WebContents): Promise<void> {
+  if (process.platform !== "darwin") return;
+  // Electron's native macOS drag source does not send DOM dragend or a drop result.
+  // Wait for the physical gesture to end; hiding earlier can interrupt the native drag.
+  await new Promise<void>((resolve, reject) => {
+    execFile("/usr/bin/osascript", ["-l", "JavaScript", "-e",
+      'ObjC.import("AppKit"); while ((Number($.NSEvent.pressedMouseButtons) & 1) !== 0) { delay(0.05); }'
+    ], { timeout: 60000 }, error => error ? reject(error) : resolve());
+  });
+  if (!sender.isDestroyed()) hideWindow();
+}
+
 function toggleWindow(): void {
   if (!mainWindow || mainWindow.isDestroyed() || isNativeDialogOpen || isShortcutRecording) return;
   if (mainWindow.isVisible()) hideWindow(); else showWindow();
@@ -631,21 +643,13 @@ function registerHistoryIpc(): void {
     // A single image follows the original native-file path; selections export all files.
     const icon = image.resize({ width: 64 });
     event.sender.startDrag(files.length === 1 ? { file: files[0], icon } : { file: files[0], files, icon });
-    if (dismissAfterDrag && process.platform === "darwin") {
-      // Electron's native macOS drag source does not send DOM dragend or a drop result.
-      // Wait for the physical gesture to end; hiding earlier can interrupt the native drag.
-      await new Promise<void>((resolve, reject) => {
-        execFile("/usr/bin/osascript", ["-l", "JavaScript", "-e",
-          'ObjC.import("AppKit"); while ((Number($.NSEvent.pressedMouseButtons) & 1) !== 0) { delay(0.05); }'
-        ], { timeout: 60000 }, error => error ? reject(error) : resolve());
-      });
-      if (!event.sender.isDestroyed()) hideWindow();
-    }
+    if (dismissAfterDrag) await dismissImageDragWindow(event.sender);
     return true;
   });
 
-  ipcMain.handle("file:drag-start", async (event, id: unknown) => {
+  ipcMain.handle("file:drag-start", async (event, id: unknown, dismissAfterDrag: unknown = false) => {
     assertTrustedWindow(event);
+    if (typeof dismissAfterDrag !== "boolean") return false;
     if (typeof id !== "string" || id.length > 100) return false;
     const paths = await fileStore.resolvePaths(id);
     if (!paths) { await publishHistory(); return false; }
@@ -654,6 +658,7 @@ function registerHistoryIpc(): void {
     if (icon.isEmpty()) icon = fallback;
     if (icon.isEmpty() || event.sender.isDestroyed()) return false;
     event.sender.startDrag({ file: paths[0], files: paths, icon: icon.resize({ width: 64, height: 64 }) });
+    if (dismissAfterDrag) await dismissImageDragWindow(event.sender);
     return true;
   });
 

@@ -117,7 +117,7 @@ export interface GpasterBridge {
   copyHistory(id: string): Promise<boolean>;
   previewImage(id: string): Promise<string | null>;
   startImageDrag(id: string | string[], dismissAfterDrag?: boolean): Promise<boolean>;
-  startFileDrag(id: string): Promise<boolean>;
+  startFileDrag(id: string, dismissAfterDrag?: boolean): Promise<boolean>;
   saveImage(id: string): Promise<boolean>;
   listPhrases(): Promise<QuickPhrase[]>;
   createPhrase(draft: QuickPhraseDraft): Promise<QuickPhrase>;
