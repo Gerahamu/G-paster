@@ -83,7 +83,7 @@ async function main() {
 
   const args = [
     ".", "G-paster",
-    "--platform=win32", "--arch=x64", `--out=${outputDirectory}`, "--overwrite",
+    "--platform=win32", "--arch=x64", "--asar", `--out=${outputDirectory}`, "--overwrite",
     "--icon=assets/G-paster.ico",
     "--ignore=" + [
       "^/(work|outputs|src|electron|scripts|docs|WINDOWS-HANDOFF)(/|$)",

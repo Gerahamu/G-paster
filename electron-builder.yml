@@ -10,7 +10,7 @@ files:
   - dist/**
   - dist-electron/**
   - assets/**
-  - "!assets/{G-paster.icns,G-paster.ico,G-paster-brand.png,tray-icon.svg,GpasterTemplate.png,GpasterTemplate@2x.png}"
+  - "!assets/{G-paster.icns,G-paster-brand.png,tray-icon.svg,GpasterTemplate.png,GpasterTemplate@2x.png}"
   - "!assets/localizations/**"
   - "!**/*.map"
 

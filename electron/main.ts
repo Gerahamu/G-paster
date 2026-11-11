@@ -854,7 +854,7 @@ function createWindow(): void {
     minHeight: 340,
     show: false,
     title: APP_NAME,
-    icon: join(app.getAppPath(), "assets", process.platform === "win32" ? "G-paster.ico" : "G-paster-icon.png"),
+    icon: join(app.getAppPath(), "assets", process.platform === "win32" && existsSync(join(app.getAppPath(), "assets", "G-paster.ico")) ? "G-paster.ico" : "G-paster-icon.png"),
     backgroundColor: windowBackground(),
     autoHideMenuBar: true,
     alwaysOnTop: true,
