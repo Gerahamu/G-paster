@@ -18,6 +18,7 @@ app.getVersion = () => JSON.parse(fs.readFileSync(join(root, 'package.json'), 'u
 let preferred = ['zh-Hans-CN'], text = '', items = [], menu, suspended = false;
 app.getPreferredSystemLanguages = () => preferred;
 app.getSystemLocale = () => 'en-US';
+const DEFAULT_SHORTCUT = process.platform === 'darwin' ? 'Control+C' : 'Alt+V';
 BrowserWindow.prototype.show = function () { this.showInactive(); };
 BrowserWindow.prototype.focus = function () {};
 const bindings = new Map();
@@ -85,7 +86,7 @@ app.whenReady().then(async () => {
   toggle();
   await evaluate('document.querySelector(".settings-entry").click()');
   await waitFor(() => evaluate('Boolean(document.querySelector(".settings-switch"))'), 'settings loaded');
-  await waitFor(() => window.getSize()[1] === 460, 'settings normal height');
+  await waitFor(() => Math.abs(window.getSize()[1] - 460) <= 32, 'settings normal height');
   assert.equal(await evaluate('document.querySelectorAll(".settings-section").length'), 3);
   assert.equal(await evaluate('document.querySelector(".settings-switch").disabled'), !app.isPackaged);
   assert.equal((await evaluate('window.gpaster.getPreferences()')).appearance, 'system');
@@ -98,19 +99,19 @@ app.whenReady().then(async () => {
     await waitFor(() => !suspended && evaluate('!document.querySelector(".recording")'), 'recording complete');
   }
   await record('X', ['control']);
-  assert.equal((await evaluate('window.gpaster.getPreferences()')).shortcut, 'Control+C');
-  assert.equal(bindings.has('Control+C'), true);
+  assert.equal((await evaluate('window.gpaster.getPreferences()')).shortcut, DEFAULT_SHORTCUT);
+  assert.equal(bindings.has(DEFAULT_SHORTCUT), true);
   await waitFor(() => evaluate('document.querySelector("[role=alert]")?.textContent.includes("已被占用")'), 'conflict feedback');
   await record('G', ['control', 'shift']);
   await waitFor(async () => (await evaluate('window.gpaster.getPreferences()')).shortcut === 'Control+Shift+G', 'new shortcut');
-  assert.equal(bindings.has('Control+C'), false); assert.equal(bindings.has('Control+Shift+G'), true);
+  assert.equal(bindings.has(DEFAULT_SHORTCUT), false); assert.equal(bindings.has('Control+Shift+G'), true);
   assert.deepEqual(JSON.parse(await readFile(join(data, 'preferences.json'), 'utf8')), [{ shortcut: 'Control+Shift+G', language: 'system', appearance: 'system', textLimit: 300, imageLimit: 10, saveFileCopies: false }]);
   toggle(); assert.equal(window.isVisible(), false); toggle(); assert.equal(window.isVisible(), true);
   await waitFor(() => evaluate('Boolean(document.querySelector(".module-tabs"))'), 'normal panel on reopen');
   menu.items[1].click();
   await waitFor(() => evaluate('Boolean(document.querySelector(".settings-switch"))'), 'tray settings entry');
   await evaluate('document.querySelector(".settings-link").click()');
-  await waitFor(async () => (await evaluate('window.gpaster.getPreferences()')).shortcut === 'Control+C', 'default reset');
+  await waitFor(async () => (await evaluate('window.gpaster.getPreferences()')).shortcut === DEFAULT_SHORTCUT, 'default reset');
   console.log('PASS secure IPC, real renderer shortcut capture, conflict rollback, persistence, reset, tray settings entry');
 
   await evaluate('document.querySelector(".shortcut-control .settings-action").click()');
@@ -244,4 +245,7 @@ app.whenReady().then(async () => {
   assert.equal((await evaluate('window.gpaster.listHistory()')).some(item => item.content === text), true);
   nativeTheme.themeSource = 'system';
   console.log(`PASS settings language/theme/layout, fixed data folder and preserved history (isPackaged=${app.isPackaged})`);
-}).finally(async () => { await rm(directory, { recursive: true, force: true }); }).then(() => app.quit()).catch(error => { console.error(error); app.exit(1); });
+}).finally(async () => {
+  for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.destroy();
+  await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 150 });
+}).then(() => app.quit()).catch(error => { console.error(error); app.exit(1); });

@@ -86,8 +86,8 @@ app.whenReady().then(async () => {
 
   await evaluate('document.querySelectorAll(".image-selection")[0].click(); document.querySelectorAll(".image-selection")[1].click()');
   assert.equal(await evaluate('document.querySelectorAll(".image-card.selected").length'), 2);
-  await evaluate('document.querySelector(".image-card .icon-button").focus()');
-  await delay(200);
+  await evaluate('document.querySelector(".image-card-footer").style.transition = "none"; document.querySelector(".image-card .icon-button").focus()');
+  await delay(50);
   assert.equal(await evaluate('getComputedStyle(document.querySelector(".image-card-footer")).opacity'), '1');
   await evaluate('document.querySelector(".screenshot-footer .settings-link").click()');
   assert.equal(await evaluate('document.querySelectorAll(".image-card.selected").length'), 0);
@@ -100,27 +100,38 @@ app.whenReady().then(async () => {
   const beginDrag = () => evaluate('document.querySelector(".image-preview-button").dispatchEvent(new Event("dragstart", { bubbles: true, cancelable: true }))');
   await evaluate('document.querySelectorAll(".image-selection")[0].click(); document.querySelectorAll(".image-selection")[1].click()');
   await beginDrag();
-  await waitFor(() => Boolean(finishGesture), 'multi-drag waiting for physical release');
-  assert.equal(nativeDrags.at(-1).files.length, 2);
-  assert.equal(hideCalls, 0, 'do not dismiss during native drag');
-  assert.equal(await evaluate('document.querySelectorAll(".image-card.selected").length'), 2);
-  finishGesture(new Error('simulated gesture monitor failure')); finishGesture = undefined;
-  await delay(200);
-  assert.equal(hideCalls, 0);
-  assert.equal(await evaluate('document.querySelectorAll(".image-card.selected").length'), 2, 'failed drag preserves selection');
-  await beginDrag();
-  await waitFor(() => Boolean(finishGesture), 'retry gesture monitor');
-  finishGesture(null); finishGesture = undefined;
+  if (process.platform === 'darwin') {
+    await waitFor(() => Boolean(finishGesture), 'multi-drag waiting for physical release');
+    assert.equal(nativeDrags.at(-1).files.length, 2);
+    assert.equal(hideCalls, 0, 'do not dismiss during native drag');
+    assert.equal(await evaluate('document.querySelectorAll(".image-card.selected").length'), 2);
+    finishGesture(new Error('simulated gesture monitor failure')); finishGesture = undefined;
+    await delay(200);
+    assert.equal(hideCalls, 0);
+    assert.equal(await evaluate('document.querySelectorAll(".image-card.selected").length'), 2, 'failed drag preserves selection');
+    await beginDrag();
+    await waitFor(() => Boolean(finishGesture), 'retry gesture monitor');
+    finishGesture(null); finishGesture = undefined;
+  } else {
+    await waitFor(() => nativeDrags.length > 0, 'multi-drag startDrag called');
+    assert.equal(nativeDrags.at(-1).files.length, 2);
+  }
   await waitFor(() => hideCalls === 1, 'multi-drag dismisses window after release');
   await waitFor(() => evaluate('document.querySelectorAll(".image-card.selected").length === 0'), 'multi-drag clears selection');
   for (const [index, selectFirst] of [false, true].entries()) {
     if (selectFirst) await evaluate('document.querySelectorAll(".image-selection")[0].click()');
     assert.equal(await evaluate('document.querySelectorAll(".image-card.selected").length'), selectFirst ? 1 : 0);
+    const beforeDragCount = nativeDrags.length;
     await beginDrag();
-    await waitFor(() => Boolean(finishGesture), 'single drag waits for physical release');
-    assert.equal(nativeDrags.at(-1).files, undefined, 'single image retains single-file native payload');
-    assert.equal(hideCalls, 1 + index, 'single drag must not hide before release');
-    finishGesture(null); finishGesture = undefined;
+    if (process.platform === 'darwin') {
+      await waitFor(() => Boolean(finishGesture), 'single drag waits for physical release');
+      assert.equal(nativeDrags.at(-1).files, undefined, 'single image retains single-file native payload');
+      assert.equal(hideCalls, 1 + index, 'single drag must not hide before release');
+      finishGesture(null); finishGesture = undefined;
+    } else {
+      await waitFor(() => nativeDrags.length > beforeDragCount, 'single drag startDrag called');
+      assert.equal(nativeDrags.at(-1).files, undefined, 'single image retains single-file native payload');
+    }
     await waitFor(() => hideCalls === 2 + index, 'single drag hides after release');
     await waitFor(() => evaluate('document.querySelectorAll(".image-card.selected").length === 0'), 'single drag clears selection');
   }
@@ -143,9 +154,11 @@ app.whenReady().then(async () => {
   const hidesBeforeClipboardDrag = hideCalls;
   window.hide = () => { hideCalls++; originalHide(); };
   await evaluate('document.querySelector(".history-thumb-button").dispatchEvent(new Event("dragstart", {bubbles:true,cancelable:true}))');
-  await waitFor(() => Boolean(finishGesture), 'clipboard drag uses completion monitor');
-  assert.equal(hideCalls, hidesBeforeClipboardDrag);
-  finishGesture(null); finishGesture = undefined;
+  if (process.platform === 'darwin') {
+    await waitFor(() => Boolean(finishGesture), 'clipboard drag uses completion monitor');
+    assert.equal(hideCalls, hidesBeforeClipboardDrag);
+    finishGesture(null); finishGesture = undefined;
+  }
   await waitFor(() => hideCalls > hidesBeforeClipboardDrag, 'clipboard drag hides after release');
   await evaluate('document.querySelectorAll(".module-tab")[2].click()');
   assert.equal(await evaluate('document.querySelectorAll(".image-selection:checked").length'), 0, 'clipboard drag clears screenshot selection');

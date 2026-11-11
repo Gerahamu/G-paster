@@ -141,4 +141,7 @@ app.whenReady().then(async () => {
   assert.deepEqual(JSON.parse(await readFile(join(data, 'history.json'), 'utf8')), history);
   nativeTheme.themeSource = 'system';
   console.log(`PASS system appearance/language application tests (isPackaged=${app.isPackaged})`);
-}).finally(async () => { await rm(directory, { recursive: true, force: true }); }).then(() => app.quit()).catch(error => { console.error(error); app.exit(1); });
+}).finally(async () => {
+  for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.destroy();
+  await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 150 });
+}).then(() => app.quit()).catch(error => { console.error(error); app.exit(1); });

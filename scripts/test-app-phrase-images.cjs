@@ -121,7 +121,8 @@ app.whenReady().then(async () => {
   process.exitCode = 1;
 }).finally(async () => {
   app.emit('before-quit');
-  await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.destroy();
+  await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 150 });
   app.exit(process.exitCode || 0);
 }).then(() => app.exit(process.exitCode || 0)).catch(error => {
   console.error(error);

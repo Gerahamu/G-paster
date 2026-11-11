@@ -49,24 +49,33 @@ function customPrefixPattern(prefix: string): RegExp | null {
   }
 }
 
-export function getMacScreenshotDirectories(desktopDirectory: string): string[] {
+export function getScreenshotDirectories(desktopDirectory: string, picturesDirectory?: string): string[] {
   const directories = new Set<string>();
-  try {
-    const configuredLocation = execFileSync(
-      "defaults",
-      ["read", "com.apple.screencapture", "location"],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 1_500 }
-    ).trim();
-    if (configuredLocation) {
-      const expanded = configuredLocation.replace(/^~(?=\/|$)/, homedir());
-      directories.add(resolve(expanded));
+  if (process.platform === "darwin") {
+    try {
+      const configuredLocation = execFileSync(
+        "defaults",
+        ["read", "com.apple.screencapture", "location"],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 1_500 }
+      ).trim();
+      if (configuredLocation) {
+        const expanded = configuredLocation.replace(/^~(?=\/|$)/, homedir());
+        directories.add(resolve(expanded));
+      }
+    } catch {
+      // macOS uses the Desktop when no custom screenshot location is configured.
     }
-  } catch {
-    // macOS uses the Desktop when no custom screenshot location is configured.
+  } else if (process.platform === "win32") {
+    if (picturesDirectory) {
+      directories.add(join(picturesDirectory, "Screenshots"));
+      directories.add(join(picturesDirectory, "屏幕截图"));
+    }
   }
   directories.add(resolve(desktopDirectory));
   return [...directories];
 }
+
+export const getMacScreenshotDirectories = getScreenshotDirectories;
 
 export class ScreenshotMonitor {
   private readonly directories: string[];

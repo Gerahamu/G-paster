@@ -1,0 +1,42 @@
+# NSIS installer & portable build for G-paster on Windows x64.
+appId: com.gpaster.desktop
+productName: G-paster
+asar: true
+
+directories:
+  output: work/installer
+
+files:
+  - dist/**
+  - dist-electron/**
+  - assets/**
+  - "!assets/{G-paster.icns,G-paster.ico,G-paster-brand.png,tray-icon.svg,GpasterTemplate.png,GpasterTemplate@2x.png}"
+  - "!assets/localizations/**"
+  - "!**/*.map"
+
+# Reuse the Electron runtime already present in node_modules instead of re-downloading it.
+electronDist: node_modules/electron/dist
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: assets/G-paster.ico
+
+nsis:
+  artifactName: Gpaster-Setup-${version}-win-${arch}.exe
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: G-paster
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+
+portable:
+  artifactName: Gpaster-Portable-${version}-win-${arch}.exe

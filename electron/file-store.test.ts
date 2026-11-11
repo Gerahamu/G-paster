@@ -10,7 +10,7 @@ import { fileReferenceKey, fileUriList, imageFileReferenceKey, NATIVE_FILE_URL, 
 const item = (data: Record<string, string>) => ({ types: Object.keys(data), getType: async (type: string) => new Blob([data[type]]) });
 
 test("file clipboard parsing preserves ordered batches and prefers the native file representation over image/text", async () => {
-  const paths = ["/tmp/中文 report #1.pdf", "/tmp/folder", "/tmp/second.jpg"];
+  const paths = [join(tmpdir(), "中文 report #1.pdf"), join(tmpdir(), "folder"), join(tmpdir(), "second.jpg")];
   const payload = fileUriList(paths);
   const result = await readFileItems([item({ "image/png": "not image data", "text/plain": paths.join("\n"), "text/uri-list": payload, [NATIVE_FILE_URL]: pathToFileURL(paths[0]).href })]);
   assert.deepEqual(result, { paths, key: fileReferenceKey(paths) });
@@ -19,7 +19,7 @@ test("file clipboard parsing preserves ordered batches and prefers the native fi
   assert.equal(await readFileItems([item({ "text/plain": "/tmp/report.pdf" })]), null);
   assert.equal(await readFileItems([item({ "text/uri-list": "https://example.com/report.pdf\r\n# comment" })]), null);
   await assert.rejects(readFileItems([item({ [NATIVE_FILE_URL]: "file:///tmp/%invalid" })]), /无法读取/);
-  await assert.rejects(readFileItems([item({ "text/uri-list": Array.from({ length: 1001 }, (_, i) => `file:///tmp/${i}`).join("\r\n") })]), /1000/);
+  await assert.rejects(readFileItems([item({ "text/uri-list": Array.from({ length: 1001 }, (_, i) => pathToFileURL(join(tmpdir(), String(i))).href).join("\r\n") })]), /1000/);
 });
 
 test("image file reference identity changes when content at the same path is replaced", async () => {

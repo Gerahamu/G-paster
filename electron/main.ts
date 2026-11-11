@@ -26,7 +26,7 @@ import { HistoryStore } from "./history-store";
 import { ImageStore, type StoredImage } from "./image-store";
 import { Preferences } from "./preferences";
 import { PhraseStore } from "./phrase-store";
-import { getMacScreenshotDirectories, getMacScreenshotNamePrefix, ScreenshotMonitor } from "./screenshot-monitor";
+import { getMacScreenshotDirectories, getMacScreenshotNamePrefix, getScreenshotDirectories, ScreenshotMonitor } from "./screenshot-monitor";
 import { getDevServerOrigin, isTrustedPageUrl, type TrustedOriginPolicy } from "./trusted-origin";
 import { decodeImageBuffer } from "./image-codec";
 import { hasClipboardImagePayload, isClipboardImageFilePath, readClipboardItems, readImageItems } from "./clipboard-images";
@@ -40,7 +40,7 @@ import { consumeCorruptionEvents } from "./atomic-json";
 import { translate, type TranslationKey } from "../src/shared/i18n";
 
 const APP_NAME = "G-paster";
-const GLOBAL_SHORTCUT = process.platform === "darwin" ? "Control+C" : "Control+Shift+G";
+const GLOBAL_SHORTCUT = process.platform === "darwin" ? "Control+C" : "Alt+V";
 const CLIPBOARD_POLL_MS = 180;
 const IMAGE_PAYLOAD_PROBE_MS = 750;
 const MAX_CLIPBOARD_TEXT_LENGTH = 2_000_000;
@@ -223,8 +223,9 @@ async function withClipboardReadTimeout<T>(operation: Promise<T>): Promise<T> {
 }
 
 app.setName(APP_NAME);
-if (!app.isPackaged && process.env.GPASTER_DEV_USER_DATA) {
-  app.setPath("userData", process.env.GPASTER_DEV_USER_DATA);
+const customUserData = process.env.GPASTER_USER_DATA || (!app.isPackaged ? process.env.GPASTER_DEV_USER_DATA : undefined);
+if (customUserData) {
+  app.setPath("userData", customUserData);
 }
 app.setAppUserModelId("com.gpaster.desktop");
 nativeTheme.themeSource = "system";
@@ -266,14 +267,15 @@ function hideWindow(): void {
 }
 
 async function dismissImageDragWindow(sender: Electron.WebContents): Promise<void> {
-  if (process.platform !== "darwin") return;
-  // Electron's native macOS drag source does not send DOM dragend or a drop result.
-  // Wait for the physical gesture to end; hiding earlier can interrupt the native drag.
-  await new Promise<void>((resolve, reject) => {
-    execFile("/usr/bin/osascript", ["-l", "JavaScript", "-e",
-      'ObjC.import("AppKit"); while ((Number($.NSEvent.pressedMouseButtons) & 1) !== 0) { delay(0.05); }'
-    ], { timeout: 60000 }, error => error ? reject(error) : resolve());
-  });
+  if (process.platform === "darwin") {
+    // Electron's native macOS drag source does not send DOM dragend or a drop result.
+    // Wait for the physical gesture to end; hiding earlier can interrupt the native drag.
+    await new Promise<void>((resolve, reject) => {
+      execFile("/usr/bin/osascript", ["-l", "JavaScript", "-e",
+        'ObjC.import("AppKit"); while ((Number($.NSEvent.pressedMouseButtons) & 1) !== 0) { delay(0.05); }'
+      ], { timeout: 60000 }, error => error ? reject(error) : resolve());
+    });
+  }
   if (!sender.isDestroyed()) hideWindow();
 }
 
@@ -852,7 +854,7 @@ function createWindow(): void {
     minHeight: 340,
     show: false,
     title: APP_NAME,
-    icon: join(app.getAppPath(), "assets", "G-paster-icon.png"),
+    icon: join(app.getAppPath(), "assets", process.platform === "win32" ? "G-paster.ico" : "G-paster-icon.png"),
     backgroundColor: windowBackground(),
     autoHideMenuBar: true,
     alwaysOnTop: true,
@@ -1180,24 +1182,26 @@ if (!app.requestSingleInstanceLock()) {
     if (isQuitting) return;
     for (const entry of pendingFiles) savePendingFileCopy(entry);
 
-    if (process.platform === "darwin") {
-      screenshotMonitor = new ScreenshotMonitor(
-        getMacScreenshotDirectories(app.getPath("desktop")),
-        async (screenshotPath) => {
-          const generation = imageCaptureGeneration;
-          const source = await readImageFile(screenshotPath);
-          const image = await decodeImageBuffer(source);
-          if (!image) throw new Error("Screenshot file is not a supported image.");
-          if (generation !== imageCaptureGeneration) return;
-          await imageStore.record(image.buffer, image.width, image.height, Date.now(), "screenshot");
-          if (generation !== imageCaptureGeneration) return;
-          await publishHistory();
-        },
-        (issue) => reportCaptureIssue("screenshots", issue),
-        getMacScreenshotNamePrefix()
-      );
-      screenshotMonitor.start();
-    }
+    const screenshotDirs = getScreenshotDirectories(
+      app.getPath("desktop"),
+      process.platform === "win32" ? app.getPath("pictures") : undefined
+    );
+    screenshotMonitor = new ScreenshotMonitor(
+      screenshotDirs,
+      async (screenshotPath) => {
+        const generation = imageCaptureGeneration;
+        const source = await readImageFile(screenshotPath);
+        const image = await decodeImageBuffer(source);
+        if (!image) throw new Error("Screenshot file is not a supported image.");
+        if (generation !== imageCaptureGeneration) return;
+        await imageStore.record(image.buffer, image.width, image.height, Date.now(), "screenshot");
+        if (generation !== imageCaptureGeneration) return;
+        await publishHistory();
+      },
+      (issue) => reportCaptureIssue("screenshots", issue),
+      process.platform === "darwin" ? getMacScreenshotNamePrefix() : ""
+    );
+    screenshotMonitor.start();
 
     app.on("activate", showWindow);
   }).catch((error: unknown) => {

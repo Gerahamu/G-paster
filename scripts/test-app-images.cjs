@@ -74,12 +74,19 @@ app.whenReady().then(async () => {
   for (let i = 3; i < pixels.length; i += 4) pixels[i] = 255;
   const png = nativeImage.createFromBitmap(pixels, { width: 20, height: 12 }).toPNG();
   const fixture = join(directory, 'fixture.png');
-  const tiffFile = join(directory, 'fixture.tiff');
-  await writeFile(fixture, png);
-  await promisify(execFile)('/usr/bin/sips', ['-s', 'format', 'tiff', fixture, '--out', tiffFile]);
-  const tiff = await readFile(tiffFile);
-  const legacyTiff = 'electron application/osclipboard;format="NeXT TIFF v4.0 pasteboard type"';
-  items = [{types:['image/png', legacyTiff],getType:async type => new Blob([type === 'image/png' ? new Uint8Array() : new Uint8Array(tiff)])}];
+  let fallbackImageBuffer;
+  let fallbackFormat;
+  if (process.platform === 'darwin') {
+    const tiffFile = join(directory, 'fixture.tiff');
+    await writeFile(fixture, png);
+    await promisify(execFile)('/usr/bin/sips', ['-s', 'format', 'tiff', fixture, '--out', tiffFile]);
+    fallbackImageBuffer = await readFile(tiffFile);
+    fallbackFormat = 'electron application/osclipboard;format="NeXT TIFF v4.0 pasteboard type"';
+  } else {
+    fallbackImageBuffer = nativeImage.createFromBitmap(pixels, { width: 20, height: 12 }).toJPEG(100);
+    fallbackFormat = 'image/jpeg';
+  }
+  items = [{types:['image/png', fallbackFormat],getType:async type => new Blob([type === 'image/png' ? new Uint8Array() : new Uint8Array(fallbackImageBuffer)])}];
   await waitFor(async () => (await list()).some(entry => entry.kind === 'image'), 'TIFF automatic capture');
   const captured = (await list()).find(entry => entry.kind === 'image');
   assert.equal(captured.width, 20);
@@ -109,22 +116,39 @@ app.whenReady().then(async () => {
     assert.equal(await evaluate('Boolean(document.querySelector(".image-dialog"))'), false);
     const pngBlob = await items[0].getType('image/png');
     assert.deepEqual(Buffer.from(await pngBlob.arrayBuffer()), Buffer.from(preview.split(',')[1], 'base64'));
-    items = []; holdGesture = true; dragged = undefined;
-    const beforeDragHide = clipboardHideCalls;
-    await evaluate(`{
-      const target = document.querySelector(${JSON.stringify(selector)});
-      target.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true}));
-      target.dispatchEvent(new Event('dragstart', {bubbles:true,cancelable:true}));
-      target.dispatchEvent(new MouseEvent('click', {bubbles:true,detail:1}));
-    }`);
-    await waitFor(() => dragged?.file && Boolean(releaseGesture), 'clipboard drag waits for release');
-    assert.equal(dragged.files, undefined);
-    assert.deepEqual(await readFile(dragged.file), Buffer.from(preview.split(',')[1], 'base64'));
-    assert.equal(clipboardHideCalls, beforeDragHide, 'do not hide before mouse release');
-    assert.equal(items.length, 0, 'drag-click does not copy');
-    assert.equal(await evaluate('Boolean(document.querySelector(".image-dialog"))'), false);
-    releaseGesture(); releaseGesture = undefined; holdGesture = false;
-    await waitFor(() => clipboardHideCalls > beforeDragHide, 'clipboard drag hides after release');
+    if (process.platform === 'darwin') {
+      items = []; holdGesture = true; dragged = undefined;
+      const beforeDragHide = clipboardHideCalls;
+      await evaluate(`{
+        const target = document.querySelector(${JSON.stringify(selector)});
+        target.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true}));
+        target.dispatchEvent(new Event('dragstart', {bubbles:true,cancelable:true}));
+        target.dispatchEvent(new MouseEvent('click', {bubbles:true,detail:1}));
+      }`);
+      await waitFor(() => dragged?.file && Boolean(releaseGesture), 'clipboard drag waits for release');
+      assert.equal(dragged.files, undefined);
+      assert.deepEqual(await readFile(dragged.file), Buffer.from(preview.split(',')[1], 'base64'));
+      assert.equal(clipboardHideCalls, beforeDragHide, 'do not hide before mouse release');
+      assert.equal(items.length, 0, 'drag-click does not copy');
+      assert.equal(await evaluate('Boolean(document.querySelector(".image-dialog"))'), false);
+      releaseGesture(); releaseGesture = undefined; holdGesture = false;
+      await waitFor(() => clipboardHideCalls > beforeDragHide, 'clipboard drag hides after release');
+    } else {
+      items = []; dragged = undefined;
+      const beforeDragHide = clipboardHideCalls;
+      await evaluate(`{
+        const target = document.querySelector(${JSON.stringify(selector)});
+        target.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true}));
+        target.dispatchEvent(new Event('dragstart', {bubbles:true,cancelable:true}));
+        target.dispatchEvent(new MouseEvent('click', {bubbles:true,detail:1}));
+      }`);
+      await waitFor(() => Boolean(dragged?.file), 'clipboard drag starts');
+      assert.equal(dragged.files, undefined);
+      assert.deepEqual(await readFile(dragged.file), Buffer.from(preview.split(',')[1], 'base64'));
+      assert.equal(items.length, 0, 'drag-click does not copy');
+      assert.equal(await evaluate('Boolean(document.querySelector(".image-dialog"))'), false);
+      await waitFor(() => clipboardHideCalls > beforeDragHide, 'clipboard drag hides');
+    }
   }
   assert.equal(await evaluate('document.querySelector(".history-thumb").draggable'), false);
   await evaluate('document.querySelector(".history-item .copy-button").click()');
@@ -272,9 +296,19 @@ app.whenReady().then(async () => {
 
   // Delay one conversion to reproduce clearing history while decoding is in flight.
   pixels[0] = 87;
-  await writeFile(fixture, nativeImage.createFromBitmap(pixels, { width: 20, height: 12 }).toPNG());
-  await promisify(execFile)('/usr/bin/sips', ['-s', 'format', 'tiff', fixture, '--out', tiffFile]);
-  const nextTiff = await readFile(tiffFile);
+  let nextFallbackBuffer;
+  let nextFallbackMime;
+  if (process.platform === 'darwin') {
+    const fixture = join(directory, 'fixture.png');
+    const tiffFile = join(directory, 'fixture.tiff');
+    await writeFile(fixture, nativeImage.createFromBitmap(pixels, { width: 20, height: 12 }).toPNG());
+    await promisify(execFile)('/usr/bin/sips', ['-s', 'format', 'tiff', fixture, '--out', tiffFile]);
+    nextFallbackBuffer = await readFile(tiffFile);
+    nextFallbackMime = 'image/tiff';
+  } else {
+    nextFallbackBuffer = nativeImage.createFromBitmap(pixels, { width: 20, height: 12 }).toJPEG(100);
+    nextFallbackMime = 'image/jpeg';
+  }
   const codec = require(join(root, 'dist-electron/electron/image-codec.js'));
   const originalDecode = codec.decodeImageBuffer;
   let holdFirst = true, entered = false, release;
@@ -283,7 +317,7 @@ app.whenReady().then(async () => {
     if (holdFirst) { holdFirst = false; entered = true; await gate; }
     return originalDecode(source);
   };
-  items = [new ClipboardItem({ 'image/tiff': new Blob([new Uint8Array(nextTiff)]) })];
+  items = [new ClipboardItem({ [nextFallbackMime]: new Blob([new Uint8Array(nextFallbackBuffer)]) })];
   await waitFor(() => entered, 'in-flight image conversion');
   const beforeCopy = (await list()).filter(entry => entry.kind === 'image').length;
   assert.equal(await evaluate(`window.gpaster.copyHistory(${JSON.stringify(captured.id)})`), true);
@@ -301,7 +335,7 @@ app.whenReady().then(async () => {
   console.log('PASS stale conversion error cannot reappear after a successful re-copy');
   holdFirst = true; entered = false;
   gate = new Promise(resolveGate => { release = resolveGate; });
-  items = [new ClipboardItem({'image/tiff':new Blob([new Uint8Array(nextTiff)])})];
+  items = [new ClipboardItem({[nextFallbackMime]:new Blob([new Uint8Array(nextFallbackBuffer)])})];
   await waitFor(() => entered, 'in-flight image conversion before clear');
   await evaluate('window.gpaster.clearHistory()');
   release();
