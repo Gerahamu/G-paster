@@ -42,7 +42,8 @@ async function verifyPackagerOutput() {
     .replace(/\\/g, "/").split(/\r?\n/).map(entry => entry.replace(/^\/+/, ""));
   const required = [
     "package.json", "dist/index.html", "dist-electron/electron/main.js",
-    "dist-electron/electron/preload.js", "assets/G-paster-icon.png", "assets/GpasterTray.png"
+    "dist-electron/electron/preload.js", "assets/G-paster-icon.png", "assets/GpasterTray.png",
+    "assets/GpasterTray-white.png"
   ];
   for (const entry of required) {
     if (!entries.includes(entry)) throw new Error(`app.asar is missing ${entry}`);

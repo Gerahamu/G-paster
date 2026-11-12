@@ -233,6 +233,7 @@ nativeTheme.on("updated", () => {
   if (!app.isReady()) return;
   refreshSystemSettings();
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setBackgroundColor(windowBackground());
+  updateTrayIcon();
 });
 
 function showWindow(): void {
@@ -825,9 +826,28 @@ function updateTrayMenu(): void {
   ]));
 }
 
+function getTrayIconPath(): string {
+  if (process.platform === "darwin") {
+    return join(app.getAppPath(), "assets", "trayTemplate.png");
+  }
+  const isDark = nativeTheme.shouldUseDarkColors;
+  const preferred = join(app.getAppPath(), "assets", isDark ? "GpasterTray-white.png" : "GpasterTray.png");
+  if (existsSync(preferred)) return preferred;
+  return join(app.getAppPath(), "assets", "GpasterTray.png");
+}
+
+function updateTrayIcon(): void {
+  if (!tray || tray.isDestroyed()) return;
+  const iconPath = getTrayIconPath();
+  if (!existsSync(iconPath)) return;
+  const image = nativeImage.createFromPath(iconPath);
+  if (image.isEmpty()) return;
+  if (process.platform === "darwin") image.setTemplateImage(true);
+  tray.setImage(image);
+}
+
 function createTray(): void {
-  const isMacTemplate = process.platform === "darwin";
-  const iconPath = join(app.getAppPath(), "assets", isMacTemplate ? "trayTemplate.png" : "GpasterTray.png");
+  const iconPath = getTrayIconPath();
   if (!existsSync(iconPath)) {
     console.error("G-paster tray icon is missing:", iconPath);
     return;
@@ -837,7 +857,7 @@ function createTray(): void {
     console.error("G-paster tray icon could not be loaded:", iconPath);
     return;
   }
-  if (isMacTemplate) image.setTemplateImage(true);
+  if (process.platform === "darwin") image.setTemplateImage(true);
   tray = new Tray(image);
   tray.setToolTip(APP_NAME);
   updateTrayMenu();
