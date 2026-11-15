@@ -278,7 +278,14 @@ export class FileStore {
     budget.bytes += ENTRY_OVERHEAD_BYTES;
     if (budget.bytes > limit) throw new CopyLimitError("Copy size exceeded");
     const info = await lstat(source);
-    if (info.isSymbolicLink()) { await symlink(await readlink(source), target); return; }
+    if (info.isSymbolicLink()) {
+      try {
+        await symlink(await readlink(source), target);
+      } catch (error) {
+        if (process.platform !== "win32") throw error;
+      }
+      return;
+    }
     if (info.isDirectory()) {
       await mkdir(target, { mode: 0o700 });
       for (const name of await readdir(source)) await this.copyTree(join(source, name), join(target, name), budget, limit, signal);

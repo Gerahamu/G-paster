@@ -890,7 +890,32 @@ kbd {
 .phrase-dialog > .phrase-import-image { margin-top: 9px; min-height: 30px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 14px; }
 .dialog-actions .primary-button,
-.dialog-actions .secondary-button { min-width: 62px; min-height: 30px; }
+.dialog-actions .secondary-button,
+.dialog-actions .danger-button { min-width: 62px; min-height: 30px; }
+.confirmation-message {
+  margin: 8px 0 16px;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--danger-line);
+  border-radius: 8px;
+  background: var(--danger-text);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 560;
+  cursor: pointer;
+  padding: 6px 12px;
+  transition: opacity 0.15s ease;
+}
+.danger-button:hover {
+  opacity: 0.9;
+}
 .image-dialog { display: flex; flex-direction: column; gap: 8px; }
 .image-dialog .dialog-heading { margin-bottom: 0; }
 .preview-title { color: var(--text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }

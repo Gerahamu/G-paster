@@ -33,9 +33,25 @@ async function preserveCorruptFile(filePath: string, suffix: string): Promise<vo
   const stamp = Date.now();
   const target = `${filePath}.${suffix}.corrupt-${stamp}`;
   try {
-    await rename(filePath, target);
+    await safeRename(filePath, target);
   } catch (error) {
     if (!isMissing(error)) throw error;
+  }
+}
+
+export async function safeRename(source: string, destination: string, retries = 5, delayMs = 25): Promise<void> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      await rename(source, destination);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code;
+      if (attempt < retries && (code === "EPERM" || code === "EBUSY" || code === "EACCES")) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs * (attempt + 1)));
+        continue;
+      }
+      throw error;
+    }
   }
 }
 
@@ -57,7 +73,7 @@ export async function readJsonArray(filePath: string, options: ReadJsonArrayOpti
       await preserveCorruptFile(filePath, "primary");
     }
     await writeFile(filePath + ".tmp", backup, "utf8");
-    await rename(filePath + ".tmp", filePath);
+    await safeRename(filePath + ".tmp", filePath);
     return value;
   } catch (backupError) {
     if (isMissing(primaryError) && isMissing(backupError)) return [];
@@ -78,7 +94,7 @@ export async function writeJsonArray(filePath: string, value: unknown[]): Promis
   const snapshot = JSON.stringify(value);
   await mkdir(dirname(filePath), { recursive: true });
   await writeFile(filePath + ".bak.tmp", snapshot, "utf8");
-  await rename(filePath + ".bak.tmp", filePath + ".bak");
+  await safeRename(filePath + ".bak.tmp", filePath + ".bak");
   await writeFile(filePath + ".tmp", snapshot, "utf8");
-  await rename(filePath + ".tmp", filePath);
+  await safeRename(filePath + ".tmp", filePath);
 }

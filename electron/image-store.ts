@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { readJsonArray, writeJsonArray } from "./atomic-json";
+import { readJsonArray, safeRename, writeJsonArray } from "./atomic-json";
 import type { ImageSource } from "../src/shared/contracts";
 
 export const MAX_CLIPBOARD_IMAGES = 10;
@@ -72,16 +72,28 @@ export class ImageStore {
       if (existingIndex >= 0) {
         const existing = this.entries[existingIndex];
         entry = { ...existing, copiedAt, width, height, sources: [...new Set([...existing.sources, source])] };
+        const target = join(this.imagesDirectory, entry.fileName);
+        let valid = false;
+        try {
+          const bytes = await readFile(target);
+          valid = createHash("sha256").update(bytes).digest("hex") === hash;
+        } catch {
+          valid = false;
+        }
+        if (!valid) {
+          await mkdir(this.imagesDirectory, { recursive: true });
+          await writeFile(target + ".tmp", buffer);
+          await safeRename(target + ".tmp", target);
+        }
       } else {
         const id = randomUUID();
         const fileName = `${id}.png`;
         entry = { id, hash, fileName, width, height, createdAt: copiedAt, copiedAt, sources: [source] };
+        await mkdir(this.imagesDirectory, { recursive: true });
+        const target = join(this.imagesDirectory, entry.fileName);
+        await writeFile(target + ".tmp", buffer);
+        await safeRename(target + ".tmp", target);
       }
-
-      await mkdir(this.imagesDirectory, { recursive: true });
-      const target = join(this.imagesDirectory, entry.fileName);
-      await writeFile(target + ".tmp", buffer);
-      await rename(target + ".tmp", target);
 
       const next = [entry, ...this.entries.filter((candidate) => candidate.id !== entry.id)];
       const limit = this.limit;

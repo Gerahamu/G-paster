@@ -197,8 +197,11 @@ export class ScreenshotMonitor {
         }
       }
       const waitingRetry = [...this.pending.values()].some((pending) => pending.retryAt !== undefined);
-      this.onIssue(accessError
+      const accessErrorMessage = process.platform === "darwin"
         ? "无法访问部分截图目录。请在系统设置 → 隐私与安全性 → 文件与文件夹中允许 G-paster 访问截图所在目录。"
+        : "无法访问部分截图目录，请检查截图文件夹权限及存储路径。";
+      this.onIssue(accessError
+        ? accessErrorMessage
         : importError || waitingRetry ? "部分截图导入失败，正在重试。请检查图片格式及本地存储权限。" : null);
 
       const currentPaths = new Set(files.keys());

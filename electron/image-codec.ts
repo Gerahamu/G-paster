@@ -25,7 +25,9 @@ export async function decodeImageBuffer(source: Buffer): Promise<DecodedImage | 
     catch (error) { if (error instanceof ImageSizeError) throw error; return null; }
   }
   // Unknown containers are inspected by macOS before any full bitmap allocation.
-  let image = header && (header.orientation === 1 || process.platform !== "darwin") ? nativeImage.createFromBuffer(source) : nativeImage.createEmpty();
+  let image = process.platform !== "darwin" || (header && header.orientation === 1)
+    ? nativeImage.createFromBuffer(source)
+    : nativeImage.createEmpty();
   if (image.isEmpty() && process.platform === "darwin") {
     const directory = await mkdtemp(join(tmpdir(), "gpaster-image-"));
     try {

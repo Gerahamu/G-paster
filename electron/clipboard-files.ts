@@ -80,7 +80,7 @@ export async function readFileItems(items: readonly ImageClipboardItem[]): Promi
         for (const line of Buffer.from(bytes).toString("utf8").replace(/\0+$/, "").split(/\r?\n/)) {
           if (!line.trim() || line.startsWith("#")) continue;
           const url = new URL(line.trim());
-          if (url.protocol !== "file:" || (url.hostname && url.hostname !== "localhost")) continue;
+          if (url.protocol !== "file:" || (url.hostname && url.hostname !== "localhost" && process.platform !== "win32")) continue;
           const path = resolve(fileURLToPath(url));
           if (!isAbsolute(path) || path.includes("\0")) throw new Error("Invalid local file URL");
           current.push(path);

@@ -114,6 +114,14 @@ function App() {
   const [error, setError] = useState<TranslationKey | "">("");
   const [captureIssues, setCaptureIssues] = useState<CaptureIssue[]>([]);
   const [notice, setNotice] = useState<TranslationKey | "">("");
+  const [confirmation, setConfirmation] = useState<{
+    title?: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    danger?: boolean;
+    onConfirm: () => void;
+  } | null>(null);
   const [editor, setEditor] = useState<PhraseEditorState | null>(null);
   const [editorError, setEditorError] = useState<TranslationKey | "">("");
   const editorInitial = useRef<{ text: string; category: string } | null>(null);
@@ -216,14 +224,15 @@ function App() {
         searchRef.current?.focus();
       }
       if (event.key === "Escape") {
-        if (preview) closePreview();
+        if (confirmation) setConfirmation(null);
+        else if (preview) closePreview();
         else if (editor) closeEditor();
         else if (document.activeElement === searchRef.current) setQuery("");
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [editor, preview, settings.language, showSettings]);
+  }, [confirmation, editor, preview, settings.language, showSettings]);
 
   const deferredQuery = useDeferredValue(query);
   const filteredEntries = useMemo(() => {
@@ -293,20 +302,44 @@ function App() {
     }).catch(() => setError("拖动文件失败，请重试。"));
   }
 
-  async function deleteEntry(id: string): Promise<void> {
-    const entry = entries.find(item => item.id === id);
-    if (entry?.kind === "file" && entry.copyState === "saved" &&
-      !window.confirm(t("删除这条历史及 G-paster 保存的文件副本？原始文件不会被删除。"))) return;
+  function confirmAction(message: string, onConfirm: () => void, options?: { title?: string; confirmText?: string; cancelText?: string; danger?: boolean }): void {
+    if (!window.confirm.toString().includes("[native code]")) {
+      if (window.confirm(message)) onConfirm();
+      return;
+    }
+    setConfirmation({
+      message,
+      onConfirm: () => {
+        setConfirmation(null);
+        onConfirm();
+      },
+      ...options
+    });
+  }
+
+  async function performDelete(id: string): Promise<void> {
     setError("");
     try { await window.gpaster.deleteHistory(id); }
     catch { setError("删除失败，请重试。"); }
   }
 
+  async function deleteEntry(id: string): Promise<void> {
+    const entry = entries.find(item => item.id === id);
+    if (entry?.kind === "file" && entry.copyState === "saved") {
+      confirmAction(t("删除这条历史及 G-paster 保存的文件副本？原始文件不会被删除。"), () => {
+        void performDelete(id);
+      }, { danger: true });
+      return;
+    }
+    await performDelete(id);
+  }
+
   async function clearHistory(): Promise<void> {
-    if (!window.confirm(t("清空全部剪贴板历史、截图及文件副本？原始文件不会被删除，此操作无法撤销。"))) return;
-    setError("");
-    try { await window.gpaster.clearHistory(); }
-    catch { setError("清空失败，请重试。"); }
+    confirmAction(t("清空全部剪贴板历史、截图及文件副本？原始文件不会被删除，此操作无法撤销。"), async () => {
+      setError("");
+      try { await window.gpaster.clearHistory(); }
+      catch { setError("清空失败，请重试。"); }
+    }, { danger: true, confirmText: t("清空") });
   }
 
   async function openImage(entry: ClipboardImageEntry): Promise<void> {
@@ -345,12 +378,15 @@ function App() {
     } catch { setError("无法保存这张图片为常用语。"); }
   }
 
-  async function importPhraseImage(): Promise<void> {
+  async function performImportPhraseImage(): Promise<void> {
     if (!editor || editor.id || editor.sourceHistoryId) return;
     setEditorError("");
-    if (editor.text.trim() && !window.confirm(t("添加图片会丢弃当前文字草稿，继续？"))) return;
     try {
-      const saved = await window.gpaster.importPhraseImage(editor.category || "未分类");
+      const rawCategory = (editor.category || "").trim();
+      const category = (!rawCategory || rawCategory === t("未分类") || rawCategory === "未分类" || rawCategory.toLowerCase() === "uncategorized")
+        ? "未分类"
+        : rawCategory;
+      const saved = await window.gpaster.importPhraseImage(category);
       if (!saved) return;
       setQuery("");
       setCategory(saved.category);
@@ -361,10 +397,23 @@ function App() {
     } catch { setEditorError("无法保存这张图片为常用语。"); }
   }
 
+  async function importPhraseImage(): Promise<void> {
+    if (!editor || editor.id || editor.sourceHistoryId) return;
+    setEditorError("");
+    if (editor.text.trim()) {
+      confirmAction(t("添加图片会丢弃当前文字草稿，继续？"), () => {
+        void performImportPhraseImage();
+      });
+      return;
+    }
+    await performImportPhraseImage();
+  }
+
   async function deletePhrase(phrase: QuickPhrase): Promise<void> {
-    if (!window.confirm(t("删除这条常用语？"))) return;
-    try { await window.gpaster.deletePhrase(phrase.id); await refreshPhrases(); }
-    catch { setError("删除常用语失败。"); }
+    confirmAction(t("删除这条常用语？"), async () => {
+      try { await window.gpaster.deletePhrase(phrase.id); await refreshPhrases(); }
+      catch { setError("删除常用语失败。"); }
+    }, { danger: true });
   }
 
   async function copyPhrase(phrase: QuickPhrase): Promise<void> {
@@ -380,13 +429,17 @@ function App() {
     setEditorError("");
     try {
       if (!editor.text.trim()) throw new Error("常用语内容不能为空。");
+      const rawCategory = (editor.category || "").trim();
+      const normalizedCategory = (!rawCategory || rawCategory === t("未分类") || rawCategory === "未分类" || rawCategory.toLowerCase() === "uncategorized")
+        ? "未分类"
+        : rawCategory;
       let saved: QuickPhrase | null;
       if (editor.id) {
-        saved = await window.gpaster.updatePhrase({ id: editor.id, text: editor.text, category: editor.category });
+        saved = await window.gpaster.updatePhrase({ id: editor.id, text: editor.text, category: normalizedCategory });
       } else if (editor.sourceHistoryId && editor.text.trim() === editor.originalText?.trim()) {
-        saved = await window.gpaster.saveHistoryAsPhrase(editor.sourceHistoryId, editor.category);
+        saved = await window.gpaster.saveHistoryAsPhrase(editor.sourceHistoryId, normalizedCategory);
       } else {
-        saved = await window.gpaster.createPhrase({ text: editor.text, category: editor.category });
+        saved = await window.gpaster.createPhrase({ text: editor.text, category: normalizedCategory });
       }
       if (!saved) throw new Error("原记录已不存在，请重新选择。");
       await refreshPhrases();
@@ -408,8 +461,14 @@ function App() {
   function closeEditor(): void {
     if (!editor) return;
     const initial = editorInitial.current;
-    if (initial && (editor.text !== initial.text || editor.category !== initial.category) &&
-      !window.confirm(t("放弃未保存的常用语修改？"))) return;
+    if (initial && (editor.text !== initial.text || editor.category !== initial.category)) {
+      confirmAction(t("放弃未保存的常用语修改？"), () => {
+        setEditor(null);
+        setEditorError("");
+        editorInitial.current = null;
+      });
+      return;
+    }
     setEditor(null);
     setEditorError("");
     editorInitial.current = null;
@@ -514,6 +573,12 @@ function App() {
         <div className="large-image-wrap" draggable onPointerDown={() => { imageDragStarted.current = false; }} onDragStart={(event) => startImageDrag(event, preview.entry.id)}><img draggable={false} src={preview.dataUrl} alt={t("剪贴板图片，{width} × {height}", { width: preview.entry.width, height: preview.entry.height })} /></div>
         <div className="preview-actions"><button className="secondary-button" type="button" onClick={() => void saveImage(preview.entry.id)}><Icon name="save" size={15} />{t("保存")}</button><button className="primary-button" type="button" onClick={() => void copyEntry(preview.entry)}><Icon name="copy" size={15} />{t("复制图片")}</button></div>
       </section></div>}
+
+      {confirmation && <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) setConfirmation(null); }}><div className="phrase-dialog confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmation-dialog-title">
+        <div className="dialog-heading"><h2 id="confirmation-dialog-title">{confirmation.title ? confirmation.title : t("请确认操作")}</h2><button className="icon-button" type="button" onClick={() => setConfirmation(null)} aria-label={t("关闭")}><Icon name="close" size={16} /></button></div>
+        <div className="confirmation-message">{confirmation.message}</div>
+        <div className="dialog-actions"><button className="secondary-button" type="button" onClick={() => setConfirmation(null)}>{confirmation.cancelText ?? t("取消")}</button><button className={confirmation.danger ? "primary-button danger-button" : "primary-button"} type="button" onClick={confirmation.onConfirm}>{confirmation.confirmText ?? t("确定")}</button></div>
+      </div></div>}
     </main>
   );
 }

@@ -202,10 +202,23 @@ function rememberClipboardText(value: string): void {
 }
 
 function isWebUrl(value: string): boolean {
-  try {
-    const protocol = new URL(value.trim()).protocol;
-    return protocol === "http:" || protocol === "https:";
-  } catch { return false; }
+  const lines = value.trim().split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (!lines.length) return false;
+  return lines.every(line => {
+    try {
+      const protocol = new URL(line).protocol;
+      return protocol === "http:" || protocol === "https:";
+    } catch { return false; }
+  });
+}
+
+function isFileUriListText(value: string): boolean {
+  const lines = value.trim().split(/\r?\n/).map(line => line.trim()).filter(line => Boolean(line) && !line.startsWith("#"));
+  return lines.length > 0 && lines.every(line => {
+    try {
+      return new URL(line).protocol === "file:";
+    } catch { return false; }
+  });
 }
 
 async function withClipboardReadTimeout<T>(operation: Promise<T>): Promise<T> {
@@ -242,12 +255,13 @@ function showWindow(): void {
   const wasVisible = mainWindow.isVisible();
   if (!wasVisible) {
     const bounds = mainWindow.getBounds();
-    const onScreen = screen.getAllDisplays().some(({ workArea }) =>
-      bounds.x < workArea.x + workArea.width && bounds.x + bounds.width > workArea.x &&
-      bounds.y < workArea.y + workArea.height && bounds.y + bounds.height > workArea.y
-    );
-    if (!onScreen) {
-      const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    const onCursorDisplay = bounds.x < cursorDisplay.workArea.x + cursorDisplay.workArea.width &&
+      bounds.x + bounds.width > cursorDisplay.workArea.x &&
+      bounds.y < cursorDisplay.workArea.y + cursorDisplay.workArea.height &&
+      bounds.y + bounds.height > cursorDisplay.workArea.y;
+    if (!onCursorDisplay) {
+      const { workArea } = cursorDisplay;
       mainWindow.setPosition(
         Math.round(workArea.x + (workArea.width - bounds.width) / 2),
         Math.round(workArea.y + Math.min(90, Math.max(0, workArea.height - bounds.height)))
@@ -276,6 +290,9 @@ async function dismissImageDragWindow(sender: Electron.WebContents): Promise<voi
         'ObjC.import("AppKit"); while ((Number($.NSEvent.pressedMouseButtons) & 1) !== 0) { delay(0.05); }'
       ], { timeout: 60000 }, error => error ? reject(error) : resolve());
     });
+  } else {
+    // On Windows / Linux, yield a brief turn so OLE DoDragDrop completes handoff to target window.
+    await new Promise(resolve => setTimeout(resolve, 50));
   }
   if (!sender.isDestroyed()) hideWindow();
 }
@@ -1102,7 +1119,7 @@ async function pollClipboard(): Promise<void> {
           clipboard.readText(), formatRead ? formatRead.fileFormats(fallbackFormats) : fallbackFormats()
         ]));
         if (writeGeneration !== clipboardWriteGeneration || imageCapturePauseDepth > 0) return;
-        if (hasNativeFiles || (hasFiles && !isWebUrl(currentText))) {
+        if (hasNativeFiles || (hasFiles && (isFileUriListText(currentText) || (!isWebUrl(currentText) && currentText.trim().length === 0)))) {
           rememberClipboardText("");
           reportCaptureIssue("clipboard-text", null);
           return;
