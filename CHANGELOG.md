@@ -1,12 +1,12 @@
 # 更新记录
 
-## v1.0.0 · 稳定版源码
+## v1.0.0 · 稳定版
 
 - 将源码与应用内部版本升级为 `1.0.0`，发布 Git 标签 `v1.0.0`。
 - 新增「记住上次页面」设置，默认开启；关闭后，重新打开面板会返回剪贴板页。
 - 窗口失焦或隐藏时结束快捷键录制，避免录制状态残留。
 - 完善 macOS 设置页集成验证，并让打包脚本可使用本地 Electron 压缩包缓存。
-- 本次 GitHub Release 提供源码，不提供 macOS v1.0.0 安装包；现有 ad-hoc 包仅作 QA，最新可下载安装包仍为 v0.999.2。
+- 发布 macOS Apple Silicon（arm64）ZIP 与 `SHA256SUMS.txt`；使用 ad-hoc 签名，未经 Developer ID 签名和 Apple 公证。
 
 验证见 [v1.0.0 发布记录](docs/release-validation-v1.0.0.md)。
 
