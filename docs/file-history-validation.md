@@ -15,7 +15,7 @@
 
 - 原 `history.json`、`image-history.json`、`images/`、`phrases.json` 的数据格式保持原样。
 - 新增 `file-history.json`，保存一组有序原始路径、名称、类型、大小、时间和副本状态；默认不读取或复制文件内容。一次复制为一条历史，按有序路径整体去重。
-- 使用现有 Electron ClipboardItem API，`text/uri-list` 对应 macOS NSPasteboard 原生复制文件格式；兼容原生 `public.file-url` 表示。文件表示优先于图片、文本表示，Finder 复制图片文件归入文件历史。
+- 使用现有 Electron ClipboardItem API，`text/uri-list` 对应 macOS NSPasteboard 原生复制文件格式；兼容原生 `public.file-url` 表示。原生 `public.file-url` 文件表示归入文件历史；同时带有实际图片数据时图片数据按图片机制保存；仅 `text/uri-list` 的单张可解码图片可按图片保存。文件记录仍可拖出原文件，单张图片文件在图片预览中点击会复制图片。
 - 文本、链接、文件批次共用现有非图片数量上限；图片数量上限独立，默认仍为 10。文件历史删除、清空和淘汰只清理 G-paster 自己管理的副本。
 - `preferences.json` 新增可选布尔字段 `saveFileCopies`，旧设置缺失该字段时默认为 `false`；不自动复制旧历史。
 - 副本位于独立的 `managed-files/`：串行后台队列、流式复制、单批 100 MiB、总量 500 MiB、最多 10000 个目录项、50 MiB 剩余空间保护及 60 秒超时。容量统计包含保守的目录项开销。
@@ -48,7 +48,7 @@
 - 一次最多 1000 个文件引用。副本过大、目录项过多、磁盘空间不足、源文件在复制中变化或复制失败时，保存原始引用并提示。
 - 单独的符号链接、含旧式资源分叉的文件不制作永久副本；文件夹内符号链接保留为链接，不递归读取链接目标。Finder 标签、ACL 等扩展元数据不属于当前副本保存保证。
 - Windows、Linux、Intel Mac、其他 macOS 版本、网络卷、iCloud 未下载文件和长期运行压力尚未真机验证。
-- 仍使用原 180 ms 剪贴板轮询与 750 ms 截图目录扫描；两次轮询之间已被覆盖的内容无法补回。
+- 文本剪贴板按 180 ms 检查；图片/文件 payload 在格式不变时最多每 750 ms 探测一次；截图目录按 750 ms 扫描。两次检查之间已被覆盖的内容无法补回。
 - 本机为 ad-hoc 签名，未执行 Apple 公证或公开 Release 流程。
 - 2026-10-15 上传前，改用已安装的 Command Line Tools 完成 Git 差异检查，并重新执行类型检查、66 项自动化测试及生产构建，均通过；未修改系统 Xcode 许可状态。
 
