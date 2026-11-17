@@ -45,12 +45,24 @@ export default function SettingsPanel({ system, onBack }: { system: SystemSettin
     });
     void refresh();
     const onFocus = () => { void refresh(); };
+    const onBlur = () => {
+      setRecording(false);
+      void window.gpaster.setShortcutRecording(false).catch(() => undefined);
+    };
+    const unsubscribeHidden = window.gpaster.onWindowHidden(() => {
+      flushLimits();
+      setRecording(false);
+      void window.gpaster.setShortcutRecording(false).catch(() => undefined);
+    });
     window.addEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
     return () => {
       flushLimits();
       alive.current = false;
       unsubscribe();
+      unsubscribeHidden();
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("blur", onBlur);
       void window.gpaster.setShortcutRecording(false).catch(() => undefined);
     };
   }, []);
@@ -154,6 +166,7 @@ export default function SettingsPanel({ system, onBack }: { system: SystemSettin
             <div className="settings-row"><label htmlFor="image-limit">{t("图片与截图")}</label><input id="image-limit" className="settings-number" type="number" min={IMAGE_LIMIT_RANGE.min} max={IMAGE_LIMIT_RANGE.max} step="1" value={imageLimit} disabled={busy || recording} onBlur={flushLimits} onChange={event => { dirtyLimits.current = true; setImageLimit(event.target.value); scheduleLimits(textLimit, event.target.value); }} /></div>
             <div className="settings-row limits-actions"><button className="settings-link" type="button" disabled={busy || recording} onClick={() => { scheduleLimits(String(DEFAULT_PREFERENCES.textLimit), String(DEFAULT_PREFERENCES.imageLimit)); flushLimits(); }}>{t("恢复默认数量")}</button></div>
           </form>
+          <div className="settings-row"><div className="settings-copy"><strong>{t("记住上次页面")}</strong><span>{t("再次打开窗口时保留上次页面；关闭后默认打开剪贴板。")}</span></div><button className="settings-switch" type="button" role="switch" aria-checked={preferences.rememberPage} aria-label={t("记住上次页面")} disabled={busy || recording} onClick={() => void apply(() => window.gpaster.updatePreferences({ rememberPage: !preferences.rememberPage }))}><span /></button></div>
           <div className="settings-row"><div className="settings-copy"><strong>{t("保存文件副本")}</strong><span>{t("仅影响之后收集的文件。单批 100 MB，总副本 500 MB；超限保留引用并提示。删除历史会移除副本，原文件不变。")}</span></div><button className="settings-switch" type="button" role="switch" aria-checked={preferences.saveFileCopies} aria-label={t("保存文件副本")} disabled={busy || recording} onClick={() => void apply(() => window.gpaster.updatePreferences({ saveFileCopies: !preferences.saveFileCopies }))}><span /></button></div>
           <div className="settings-row"><div className="settings-copy"><span>{t("仅存储在本机，原截图保持不变。")}</span></div><button className="settings-action" type="button" onClick={() => { void window.gpaster.openDataDirectory().then(ok => { if (!ok) setError("无法打开数据文件夹。"); }).catch(() => setError("无法打开数据文件夹。")); }}>{t("打开数据文件夹")}</button></div>
         </div><p className="settings-caption">{t("更改自动保存并生效；常用语不受此上限影响。")}</p></section>

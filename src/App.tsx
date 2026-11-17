@@ -102,6 +102,7 @@ function App() {
   };
   const [entries, setEntries] = useState<ClipboardHistoryItem[]>([]);
   const [phrases, setPhrases] = useState<QuickPhrase[]>([]);
+  const rememberPage = useRef(DEFAULT_PREFERENCES.rememberPage);
   const [activeModule, setActiveModule] = useState<ModuleName>("history");
   const [showSettings, setShowSettings] = useState(false);
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
@@ -127,8 +128,8 @@ function App() {
 
   useEffect(() => {
     let changed = false;
-    const unsubscribe = window.gpaster.onPreferencesChanged(next => { changed = true; setImageLimit(next.imageLimit); });
-    void window.gpaster.getPreferences().then(next => { if (!changed) setImageLimit(next.imageLimit); }).catch(() => undefined);
+    const unsubscribe = window.gpaster.onPreferencesChanged(next => { changed = true; setImageLimit(next.imageLimit); rememberPage.current = next.rememberPage; });
+    void window.gpaster.getPreferences().then(next => { if (!changed) { setImageLimit(next.imageLimit); rememberPage.current = next.rememberPage; } }).catch(() => undefined);
     return unsubscribe;
   }, []);
 
@@ -174,11 +175,11 @@ function App() {
     const unsubscribeHidden = window.gpaster.onWindowHidden(() => setSelectedImages(new Set()));
     const unsubscribeShown = window.gpaster.onWindowShown(() => {
       setSelectedImages(new Set());
-      setShowSettings(false);
+      if (!rememberPage.current) setShowSettings(false);
       setPreview(null);
       previewRequest.current++;
       setQuery("");
-      setActiveModule("history");
+      if (!rememberPage.current) setActiveModule("history");
       void Promise.all([refreshHistory(), refreshPhrases()]).catch(() => setError("读取本地内容失败。"));
       window.setTimeout(() => searchRef.current?.focus(), 0);
     });

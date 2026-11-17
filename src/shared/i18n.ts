@@ -1,6 +1,8 @@
 export type UiLanguage = "zh" | "en";
 
 const english = {
+  "记住上次页面": "Remember last page",
+  "再次打开窗口时保留上次页面；关闭后默认打开剪贴板。": "Keep the last page when reopening the window. When disabled, open Clipboard.",
   "添加图片": "Add image",
   "添加图片会丢弃当前文字草稿，继续？": "Adding an image will discard the current text draft. Continue?",
   "图片": "Image",

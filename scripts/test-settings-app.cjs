@@ -104,9 +104,32 @@ app.whenReady().then(async () => {
   await record('G', ['control', 'shift']);
   await waitFor(async () => (await evaluate('window.gpaster.getPreferences()')).shortcut === 'Control+Shift+G', 'new shortcut');
   assert.equal(bindings.has('Control+C'), false); assert.equal(bindings.has('Control+Shift+G'), true);
-  assert.deepEqual(JSON.parse(await readFile(join(data, 'preferences.json'), 'utf8')), [{ shortcut: 'Control+Shift+G', language: 'system', appearance: 'system', textLimit: 300, imageLimit: 10, saveFileCopies: false }]);
+  assert.deepEqual(JSON.parse(await readFile(join(data, 'preferences.json'), 'utf8')), [{ shortcut: 'Control+Shift+G', language: 'system', appearance: 'system', textLimit: 300, imageLimit: 10, saveFileCopies: false, rememberPage: true }]);
+  toggle(); toggle();
+  await waitFor(() => evaluate('Boolean(document.querySelector(".settings-switch"))'), "settings page retained");
+  await evaluate('window.gpaster.updatePreferences({rememberPage:false})');
   toggle(); assert.equal(window.isVisible(), false); toggle(); assert.equal(window.isVisible(), true);
   await waitFor(() => evaluate('Boolean(document.querySelector(".module-tabs"))'), 'normal panel on reopen');
+  assert.equal(await evaluate('document.querySelectorAll(".module-tab")[0].classList.contains("active")'), true);
+
+  // When rememberPage is false, switching tab resets to clipboard history on reopen
+  await evaluate('document.querySelectorAll(".module-tab")[1].click()');
+  await waitFor(() => evaluate('document.querySelectorAll(".module-tab")[1].classList.contains("active")'), 'phrases active');
+  toggle(); toggle();
+  await waitFor(() => evaluate('document.querySelectorAll(".module-tab")[0].classList.contains("active")'), 'resets to history when rememberPage false');
+
+  // When rememberPage is true, switching tab is retained on reopen
+  await evaluate('window.gpaster.updatePreferences({rememberPage:true})');
+  await evaluate('document.querySelectorAll(".module-tab")[1].click()');
+  await waitFor(() => evaluate('document.querySelectorAll(".module-tab")[1].classList.contains("active")'), 'phrases active again');
+  toggle(); toggle();
+  await waitFor(() => evaluate('document.querySelectorAll(".module-tab")[1].classList.contains("active")'), 'phrases tab retained when rememberPage true');
+  await evaluate('document.querySelectorAll(".module-tab")[2].click()');
+  await waitFor(() => evaluate('document.querySelectorAll(".module-tab")[2].classList.contains("active")'), 'screenshots active');
+  toggle(); toggle();
+  await waitFor(() => evaluate('document.querySelectorAll(".module-tab")[2].classList.contains("active")'), 'screenshots tab retained when rememberPage true');
+  await evaluate('document.querySelectorAll(".module-tab")[0].click()');
+
   menu.items[1].click();
   await waitFor(() => evaluate('Boolean(document.querySelector(".settings-switch"))'), 'tray settings entry');
   await evaluate('document.querySelector(".settings-link").click()');
@@ -150,11 +173,19 @@ app.whenReady().then(async () => {
   assert.equal((await evaluate('window.gpaster.getPreferences()')).imageLimit, 10);
   assert.equal((await evaluate('window.gpaster.getPreferences()')).textLimit, 300);
   assert.equal((await evaluate('window.gpaster.getPreferences()')).saveFileCopies, false);
+  assert.equal((await evaluate('window.gpaster.getPreferences()')).rememberPage, true);
   await evaluate('document.querySelectorAll(".settings-switch")[1].click()');
-  await waitFor(async () => (await evaluate('window.gpaster.getPreferences()')).saveFileCopies && await evaluate('!document.querySelectorAll(".settings-switch")[1].disabled'), 'file copy option enabled');
+  await waitFor(async () => !(await evaluate('window.gpaster.getPreferences()')).rememberPage && await evaluate('!document.querySelectorAll(".settings-switch")[1].disabled'), 'remember page option disabled');
+  assert.equal(JSON.parse(await readFile(join(data, 'preferences.json'), 'utf8'))[0].rememberPage, false);
+  await evaluate('document.querySelectorAll(".settings-switch")[1].click()');
+  await waitFor(async () => (await evaluate('window.gpaster.getPreferences()')).rememberPage && await evaluate('!document.querySelectorAll(".settings-switch")[1].disabled'), 'remember page option re-enabled');
+  assert.equal(JSON.parse(await readFile(join(data, 'preferences.json'), 'utf8'))[0].rememberPage, true);
+  console.log('PASS remember page setting defaults on, toggles through UI and persists');
+  await evaluate('document.querySelectorAll(".settings-switch")[2].click()');
+  await waitFor(async () => (await evaluate('window.gpaster.getPreferences()')).saveFileCopies && await evaluate('!document.querySelectorAll(".settings-switch")[2].disabled'), 'file copy option enabled');
   assert.equal(JSON.parse(await readFile(join(data, 'preferences.json'), 'utf8'))[0].saveFileCopies, true);
-  await evaluate('document.querySelectorAll(".settings-switch")[1].click()');
-  await waitFor(async () => !(await evaluate('window.gpaster.getPreferences()')).saveFileCopies && await evaluate('!document.querySelectorAll(".settings-switch")[1].disabled'), 'file copy option disabled');
+  await evaluate('document.querySelectorAll(".settings-switch")[2].click()');
+  await waitFor(async () => !(await evaluate('window.gpaster.getPreferences()')).saveFileCopies && await evaluate('!document.querySelectorAll(".settings-switch")[2].disabled'), 'file copy option disabled');
   console.log('PASS file copy setting defaults off, toggles through UI and persists');
   const input = async (id, value) => evaluate(`{ const field = document.getElementById(${JSON.stringify(id)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(field, ${JSON.stringify(value)}); field.dispatchEvent(new Event('input', {bubbles:true})); }`);
   const select = async (id, value) => {

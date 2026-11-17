@@ -8,9 +8,9 @@
 
 一个常驻 macOS 菜单栏的轻量剪贴板工具。<br />剪贴板、常用语、截图中转站，在一个紧凑面板里接着用。
 
-![Mac v0.999.2](https://img.shields.io/badge/Mac-v0.999.2-262626?style=flat-square&labelColor=707786) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-707786?style=flat-square&labelColor=20222a) ![本地存储](https://img.shields.io/badge/data-local%20only-707786?style=flat-square&labelColor=20222a)
+![Source v1.0.0](https://img.shields.io/badge/source-v1.0.0-262626?style=flat-square&labelColor=707786) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-707786?style=flat-square&labelColor=20222a) ![本地存储](https://img.shields.io/badge/data-local%20only-707786?style=flat-square&labelColor=20222a)
 
-[下载 Mac v0.999.2](https://github.com/Gerahamu/G-paster/releases/tag/v0.999.2) · [本次验证](docs/release-validation-v0.999.2.md) · [版本更新](CHANGELOG.md) · [开始使用](#开始使用) · [参与开发](#开发与构建)
+[v1.0.0 源码发布](https://github.com/Gerahamu/G-paster/releases/tag/v1.0.0) · [v1.0.0 验证记录](docs/release-validation-v1.0.0.md) · [最新可下载安装包：Mac v0.999.2](https://github.com/Gerahamu/G-paster/releases/tag/v0.999.2) · [版本更新](CHANGELOG.md) · [开始使用](#开始使用) · [参与开发](#开发与构建)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/readme/hero-dark.png" />
@@ -24,7 +24,15 @@
 
 <br />
 
-## Mac v0.999.2 · macOS Apple Silicon
+## v1.0.0 · 稳定版源码
+
+**应用源码与内部版本为 1.0.0，Git 标签为 `v1.0.0`。** 本版本包含 0.999.2 的剪贴板、常用语、截图和文件历史功能，并增加「记住上次页面」选项；关闭该选项后，重新打开面板会回到剪贴板页。快捷键录入在窗口失焦或隐藏时会退出录制状态。
+
+[GitHub v1.0.0 源码发布](https://github.com/Gerahamu/G-paster/releases/tag/v1.0.0) · [发布验证范围](docs/release-validation-v1.0.0.md)
+
+> 此次 v1.0.0 Release 提供源码与版本标签，**不含可安装的 macOS v1.0.0 包**。当前没有可用于 Developer ID 签名和 Apple 公证的凭据；仓库的 ad-hoc 打包命令仅用于本机 QA。最新可下载的 macOS Apple Silicon 安装包仍为 [v0.999.2](https://github.com/Gerahamu/G-paster/releases/tag/v0.999.2)。
+
+## 最新可下载的 Mac 安装包 · v0.999.2
 
 **应用内部版本 0.999.2，Git 标签 `v0.999.2`。** 包含 16:10 双列截图画廊、剪贴板图片单击复制并收起、右击详情、剪贴板图片拖移后收起和清空截图多选、图片常用语、文件历史及此前 0.9.0 的性能和可靠性修复。截图单张直接拖移、勾选一张拖移及多张拖移结束、释放鼠标后均自动收起窗口并清空选择；关闭、失焦收起和重新打开时也会重置选择；取消拖移也会清空，无法确认第三方输入框是否接收成功。
 
@@ -95,7 +103,7 @@
 ### 用完即收，随时再开
 
 - **住在菜单栏。** macOS 上后台运行，默认不占据 Dock；点击菜单栏图标即可打开。
-- **按习惯设置。** 标题栏齿轮和菜单栏「设置」提供快捷键录入、恢复默认、开机启动及本地存储说明。支持中文／英文／跟随系统，浅色／深色／跟随系统，以及文本和图片保留数量编辑。修改保存到本机，快捷键和外观即时生效。
+- **按习惯设置。** 标题栏齿轮和菜单栏「设置」提供快捷键录入、恢复默认、开机启动及本地存储说明。支持中文／英文／跟随系统，浅色／深色／跟随系统，文本和图片保留数量编辑，以及记住上次打开的页面。修改保存到本机，快捷键和外观即时生效。
 - **跟随系统。** 语言和外观默认跟随系统，也可以在设置中手动选择；时间格式仍跟随系统区域。系统语言模式下，中文系统使用中文，其余语言使用英文。修改系统语言后，如 macOS 提示重启应用，请按提示重新启动。
 - **一个紧凑面板。** 默认 400 × 460 px，空记录状态约 400 × 340 px；点击窗口外部或关闭窗口后继续在后台运行。
 - **在当前桌面呼出。** macOS 使用可跨 Spaces 显示的面板窗口，减少唤出时被带回旧桌面的情况；完整跨桌面操作仍需在目标系统验证。
@@ -132,9 +140,9 @@ Photo Booth 可能提供旧版 TIFF 与文件引用，而非标准 PNG。0.1.6 �
 
 ## 开始使用
 
-### 下载 Mac v0.999.2
+### 下载最新可安装的 Mac 版本 v0.999.2
 
-从上方 Release 下载 ZIP，解压后将 `G-paster.app` 放入 Applications。本版本仅提供 **macOS Apple Silicon（arm64）**，使用 ad-hoc 签名，没有 Developer ID 签名或 Apple 公证。安装包元数据要求 macOS 13.0 或更高，本轮实测环境为 macOS 27.0.1 / arm64；Intel Mac、其他 macOS 版本、Windows 和 Linux 尚未完成本轮发布验证。
+从上方 Release 下载 ZIP，解压后将 `G-paster.app` 放入 Applications。这是目前最新的预编译安装包，应用版本为 **0.999.2**；v1.0.0 当前仅发布源码。此包仅提供 **macOS Apple Silicon（arm64）**，使用 ad-hoc 签名，没有 Developer ID 签名或 Apple 公证。安装包元数据要求 macOS 13.0 或更高，历史实测环境为 macOS 27.0.1 / arm64；Intel Mac、其他 macOS 版本、Windows 和 Linux 尚未完成本轮发布验证。
 
 更新已有版本时，先从菜单栏退出旧应用，再替换 `.app`，随后通过菜单栏图标或 <kbd>Control</kbd> + <kbd>C</kbd> 呼出面板。本次提供 ZIP 和 `SHA256SUMS.txt`；Developer ID 签名、hardened runtime 和 Apple 公证尚未完成。
 
@@ -260,6 +268,6 @@ scripts/                开发启动及 macOS 后台应用配置
 
 [反馈问题](https://github.com/Gerahamu/G-paster/issues) · [浏览源码](https://github.com/Gerahamu/G-paster)
 
-<sub>当前版本 Mac v0.999.2（0.999.2）· macOS arm64 ad-hoc 构建 · 仓库尚未添加开源许可证</sub>
+<sub>当前源码 v1.0.0 · 最新可安装的 Mac 版本 v0.999.2 · 仓库尚未添加开源许可证</sub>
 
 </div>

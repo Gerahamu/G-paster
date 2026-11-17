@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { access } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -82,6 +83,9 @@ async function main() {
     "--extra-resource=assets/localizations/zh-Hant.lproj",
     "--ignore=^/(work|outputs|src|electron|scripts|docs)(/|$)|^/node_modules/(\\.vite|\\.package-lock\\.json)(/|$)|^/(README\\.md|CHANGELOG\\.md|index\\.html|vite\\.config\\.mts|tsconfig\\.[^/]+\\.json|\\.gitignore)$|^/assets/(G-paster\\.icns|G-paster-brand\\.png|tray-icon\\.svg|GpasterTemplate(@2x)?\\.png|localizations)(/|$)"
   ];
+
+  const localElectronZipDir = process.env.ELECTRON_ZIP_DIR || (existsSync(resolve(root, "work/electron-local")) ? resolve(root, "work/electron-local") : null);
+  if (localElectronZipDir) args.push(`--electron-zip-dir=${localElectronZipDir}`);
 
   let teamId;
   if (!noDeveloperId) {
