@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { deliverWindowsArtifacts } from "./deliver-windows-artifacts.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputDirectory = resolve(root, process.env.GPASTER_WIN_OUT || "work/packaged");
@@ -99,6 +100,14 @@ async function main() {
   if (existsSync(builderEntry) && existsSync(join(root, "electron-builder.yml"))) {
     run(node, [builderEntry, "--win", "--config", "electron-builder.yml"], "Windows NSIS & Portable Installer (electron-builder)");
     await verifyInstallerOutput();
+    const pkg = JSON.parse(capture(node, ["-e", "console.log(JSON.stringify(require('./package.json')) )"], "read package.json"));
+    const delivered = await deliverWindowsArtifacts(
+      resolve(root, "work/installer"),
+      resolve(root, "outputs"),
+      pkg.version
+    );
+    console.log("\nWindows delivery artifacts updated:");
+    for (const path of delivered) console.log(`  ${path}`);
   }
 
   console.log("\n=========================================");

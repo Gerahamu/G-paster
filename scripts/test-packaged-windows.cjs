@@ -9,8 +9,9 @@ const { setTimeout: delay } = require("node:timers/promises");
 
 const root = resolve(__dirname, "..");
 const exePath = join(root, "work", "packaged", "G-paster-win32-x64", "G-paster.exe");
-const nsisPath = join(root, "work", "installer", "Gpaster-Setup-0.999.2-win-x64.exe");
-const portablePath = join(root, "work", "installer", "Gpaster-Portable-0.999.2-win-x64.exe");
+const version = require(join(root, "package.json")).version;
+const nsisPath = join(root, "work", "installer", `Gpaster-Setup-${version}-win-x64.exe`);
+const portablePath = join(root, "work", "installer", `Gpaster-Portable-${version}-win-x64.exe`);
 
 async function waitFor(fn, label, timeoutMs = 15000) {
   const start = Date.now();
@@ -37,8 +38,8 @@ async function verifyFiles() {
 
   console.log("   Artifact sizes:");
   console.log(`   - G-paster.exe: ${(fs.statSync(exePath).size / 1024 / 1024).toFixed(2)} MB`);
-  console.log(`   - Gpaster-Setup-0.999.2-win-x64.exe: ${(fs.statSync(nsisPath).size / 1024 / 1024).toFixed(2)} MB`);
-  console.log(`   - Gpaster-Portable-0.999.2-win-x64.exe: ${(fs.statSync(portablePath).size / 1024 / 1024).toFixed(2)} MB`);
+  console.log(`   - Gpaster-Setup-${version}-win-x64.exe: ${(fs.statSync(nsisPath).size / 1024 / 1024).toFixed(2)} MB`);
+  console.log(`   - Gpaster-Portable-${version}-win-x64.exe: ${(fs.statSync(portablePath).size / 1024 / 1024).toFixed(2)} MB`);
 }
 
 async function verifyPackagedRuntime() {
