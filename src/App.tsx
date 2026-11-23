@@ -115,6 +115,9 @@ function App() {
   const [error, setError] = useState<TranslationKey | "">("");
   const [captureIssues, setCaptureIssues] = useState<CaptureIssue[]>([]);
   const [notice, setNotice] = useState<TranslationKey | "">("");
+  const phraseNoticeTimer = useRef<number | undefined>(undefined);
+  const windowVisible = useRef(true);
+  const windowHideGeneration = useRef(0);
   const [editor, setEditor] = useState<PhraseEditorState | null>(null);
   const [editorError, setEditorError] = useState<TranslationKey | "">("");
   const editorInitial = useRef<{ text: string; category: string } | null>(null);
@@ -172,10 +175,17 @@ function App() {
       setEntries(nextEntries);
       setLoading(false);
     });
-    const unsubscribeHidden = window.gpaster.onWindowHidden(() => setSelectedImages(new Set()));
-    const unsubscribeShown = window.gpaster.onWindowShown(() => {
+    const unsubscribeHidden = window.gpaster.onWindowHidden(() => {
+      windowVisible.current = false;
+      windowHideGeneration.current++;
+      window.clearTimeout(phraseNoticeTimer.current);
+      setNotice(current => current === "常用语已保存。" ? "" : current);
       setSelectedImages(new Set());
-      if (!rememberPage.current) setShowSettings(false);
+    });
+    const unsubscribeShown = window.gpaster.onWindowShown(() => {
+      windowVisible.current = true;
+      setSelectedImages(new Set());
+      setShowSettings(false);
       setPreview(null);
       previewRequest.current++;
       setQuery("");
@@ -194,7 +204,7 @@ function App() {
         setError("读取本地内容失败。请稍后重试。");
       });
     const unsubscribeSettings = window.gpaster.onSettingsRequested(() => setShowSettings(true));
-    return () => { unsubscribeHistory(); unsubscribeHidden(); unsubscribeShown(); unsubscribeIssues(); unsubscribeSettings(); };
+    return () => { window.clearTimeout(phraseNoticeTimer.current); unsubscribeHistory(); unsubscribeHidden(); unsubscribeShown(); unsubscribeIssues(); unsubscribeSettings(); };
   }, []);
 
   useEffect(() => {
@@ -378,6 +388,7 @@ function App() {
   async function savePhrase(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!editor) return;
+    const hideGeneration = windowHideGeneration.current;
     setEditorError("");
     try {
       if (!editor.text.trim()) throw new Error("常用语内容不能为空。");
@@ -394,7 +405,13 @@ function App() {
       setEditor(null);
       editorInitial.current = null;
       setActiveModule("phrases");
-      setNotice("常用语已保存。");
+      window.clearTimeout(phraseNoticeTimer.current);
+      if (windowVisible.current && hideGeneration === windowHideGeneration.current) {
+        setNotice("常用语已保存。");
+        phraseNoticeTimer.current = window.setTimeout(() => {
+          setNotice(current => current === "常用语已保存。" ? "" : current);
+        }, 3000);
+      }
     } catch (saveError) {
       setEditorError(errorKey(saveError, "保存常用语失败。"));
     }

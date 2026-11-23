@@ -8,9 +8,9 @@
 
 一个常驻 macOS 菜单栏的轻量剪贴板工具。<br />剪贴板、常用语、截图中转站，在一个紧凑面板里接着用。
 
-![Mac v1.0.0](https://img.shields.io/badge/Mac-v1.0.0-262626?style=flat-square&labelColor=707786) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-707786?style=flat-square&labelColor=20222a) ![本地存储](https://img.shields.io/badge/data-local%20only-707786?style=flat-square&labelColor=20222a)
+![Mac v1.0.1](https://img.shields.io/badge/Mac-v1.0.1-262626?style=flat-square&labelColor=707786) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-707786?style=flat-square&labelColor=20222a) ![本地存储](https://img.shields.io/badge/data-local%20only-707786?style=flat-square&labelColor=20222a)
 
-[v1.0.0 Release](https://github.com/Gerahamu/G-paster/releases/tag/v1.0.0) · [v1.0.0 验证记录](docs/release-validation-v1.0.0.md) · [下载 macOS arm64 包](https://github.com/Gerahamu/G-paster/releases/download/v1.0.0/G-paster-v1.0.0-macos-arm64.zip) · [版本更新](CHANGELOG.md) · [开始使用](#开始使用) · [参与开发](#开发与构建)
+[v1.0.1 Release](https://github.com/Gerahamu/G-paster/releases/tag/v1.0.1) · [v1.0.1 验证记录](docs/release-validation-v1.0.1.md) · [下载 macOS arm64 包](https://github.com/Gerahamu/G-paster/releases/download/v1.0.1/G-paster-v1.0.1-macos-arm64.zip) · [版本更新](CHANGELOG.md) · [开始使用](#开始使用) · [参与开发](#开发与构建)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/readme/hero-dark.png" />
@@ -24,23 +24,23 @@
 
 <br />
 
-## Mac v1.0.0 · macOS Apple Silicon
+## Mac v1.0.1 · macOS Apple Silicon
 
-**应用版本为 1.0.0，Git 标签为 `v1.0.0`。** 本版本包含 0.999.2 的剪贴板、常用语、截图和文件历史功能，并增加「记住上次页面」选项；关闭该选项后，重新打开面板会回到剪贴板页。快捷键录入在窗口失焦或隐藏时会退出录制状态。
+**应用版本为 1.0.1，Git 标签为 `v1.0.1`。** 本版本修复常用语保存提示：显示 3 秒后自动消失，窗口收起时也会清除。重新打开窗口时，从设置页返回此前的内容页；关闭「记住上次页面」后则返回剪贴板。
 
-[GitHub v1.0.0 Release](https://github.com/Gerahamu/G-paster/releases/tag/v1.0.0) · [发布验证范围](docs/release-validation-v1.0.0.md)
+[GitHub v1.0.1 Release](https://github.com/Gerahamu/G-paster/releases/tag/v1.0.1) · [发布验证范围](docs/release-validation-v1.0.1.md)
 
-[下载 macOS arm64 ZIP](https://github.com/Gerahamu/G-paster/releases/download/v1.0.0/G-paster-v1.0.0-macos-arm64.zip) · [SHA256SUMS](https://github.com/Gerahamu/G-paster/releases/download/v1.0.0/SHA256SUMS.txt)
+[下载 macOS arm64 ZIP](https://github.com/Gerahamu/G-paster/releases/download/v1.0.1/G-paster-v1.0.1-macos-arm64.zip) · [SHA256SUMS](https://github.com/Gerahamu/G-paster/releases/download/v1.0.1/SHA256SUMS.txt)
 
-> v1.0.0 提供 **macOS Apple Silicon（arm64）ad-hoc 签名包**，没有 Developer ID 签名或 Apple 公证；Gatekeeper 可能限制首次打开。安装包最低系统版本元数据为 macOS 13.0，实机发布验证为 macOS 27.0.1 / arm64。Intel Mac、Windows 和 Linux 未验证。
+> v1.0.1 提供 **macOS Apple Silicon（arm64）ad-hoc 签名包**，没有 Developer ID 签名或 Apple 公证；Gatekeeper 可能限制首次打开。安装包最低系统版本元数据为 macOS 13.0，此前实机验证为 macOS 27.0.1 / arm64。Intel Mac、Windows 和 Linux 未验证。
 
-## 上一版 Mac 安装包 · v0.999.2
+## 历史版本 · Mac v0.999.2
 
 **应用内部版本 0.999.2，Git 标签 `v0.999.2`。** 包含 16:10 双列截图画廊、剪贴板图片单击复制并收起、右击详情、剪贴板图片拖移后收起和清空截图多选、图片常用语、文件历史及此前 0.9.0 的性能和可靠性修复。截图单张直接拖移、勾选一张拖移及多张拖移结束、释放鼠标后均自动收起窗口并清空选择；关闭、失焦收起和重新打开时也会重置选择；取消拖移也会清空，无法确认第三方输入框是否接收成功。
 
 [下载 macOS arm64 ZIP](https://github.com/Gerahamu/G-paster/releases/download/v0.999.2/G-paster-v0.999.2-macos-arm64.zip) · [SHA256SUMS](https://github.com/Gerahamu/G-paster/releases/download/v0.999.2/SHA256SUMS.txt) · [验证范围](docs/release-validation-v0.999.2.md)
 
-> 本次公开提供的是 **ad-hoc 签名、未经 Apple 公证的 macOS 构建**，不是 Developer ID 签名的正式分发包。Gatekeeper 可能阻止打开；不提供 Intel Mac、Windows 或 Linux 安装包。已有 Windows 版本见 [v0.9.0 Release](https://github.com/Gerahamu/G-paster/releases/tag/v0.9.0)。
+> 本次公开提供的是 **ad-hoc 签名、未经 Apple 公证的 macOS 构建**，不是 Developer ID 签名的正式分发包。Gatekeeper 可能阻止打开；不提供 Intel Mac、Windows 或 Linux 安装包。Windows 版本见 [Windows v1.0.0 Release](https://github.com/Gerahamu/G-paster/releases/tag/v1.0.0-windows)。
 
 <br />
 
@@ -52,7 +52,7 @@
 | :--- | :--- | :--- |
 | 完善 renderer 崩溃、加载失败和无响应提示；文件读取增加超时；损坏图片显示占位并可删除；损坏的本地 JSON 会保留原文件后恢复启动。 | 文本轮询调整为 180 ms；图片/文件 payload 在格式不变时最多每 750 ms 探测一次；截图和历史缩略图缩小，减少 IPC 与内存压力。 | 共享图片池计数更准确；图片导入前保护文字草稿；修复弹窗焦点与旧预览状态；README、CHANGELOG 与验证记录同步到 v0.9。 |
 
-> 本节记录此前未公开发布的 macOS 0.9.0 QA 构建；当前 macOS 下载请使用上方 Mac v0.999.2。
+> 本节记录此前未公开发布的 macOS 0.9.0 QA 构建；当前 macOS 下载请使用上方 Mac v1.0.1。
 
 [0.9.0 验证范围](docs/release-validation-v0.9.0.md) · [完整更新记录](CHANGELOG.md)
 
@@ -142,9 +142,9 @@ Photo Booth 可能提供旧版 TIFF 与文件引用，而非标准 PNG。0.1.6 �
 
 ## 开始使用
 
-### 下载最新可安装的 Mac 版本 v1.0.0
+### 下载最新可安装的 Mac 版本 v1.0.1
 
-从上方 Release 下载 ZIP，解压后将 `G-paster.app` 放入 Applications。本版本仅提供 **macOS Apple Silicon（arm64）**，使用 ad-hoc 签名，没有 Developer ID 签名或 Apple 公证。安装包元数据要求 macOS 13.0 或更高，实测环境为 macOS 27.0.1 / arm64；Intel Mac、Windows 和 Linux 尚未完成本轮发布验证。
+从上方 Release 下载 ZIP，解压后将 `G-paster.app` 放入 Applications。本版本仅提供 **macOS Apple Silicon（arm64）**，使用 ad-hoc 签名，没有 Developer ID 签名或 Apple 公证。安装包元数据要求 macOS 13.0 或更高，此前实测环境为 macOS 27.0.1 / arm64；Intel Mac、Windows 和 Linux 尚未完成本轮发布验证。
 
 更新已有版本时，先从菜单栏退出旧应用，再替换 `.app`，随后通过菜单栏图标或 <kbd>Control</kbd> + <kbd>C</kbd> 呼出面板。本次提供 ZIP 和 `SHA256SUMS.txt`；Developer ID 签名、hardened runtime 和 Apple 公证尚未完成。
 
@@ -270,6 +270,6 @@ scripts/                开发启动及 macOS 后台应用配置
 
 [反馈问题](https://github.com/Gerahamu/G-paster/issues) · [浏览源码](https://github.com/Gerahamu/G-paster)
 
-<sub>当前版本 Mac v1.0.0（1.0.0）· macOS arm64 ad-hoc 构建 · 仓库尚未添加开源许可证</sub>
+<sub>当前版本 Mac v1.0.1（1.0.1）· macOS arm64 ad-hoc 构建 · 仓库尚未添加开源许可证</sub>
 
 </div>

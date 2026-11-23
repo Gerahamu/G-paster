@@ -106,7 +106,8 @@ app.whenReady().then(async () => {
   assert.equal(bindings.has('Control+C'), false); assert.equal(bindings.has('Control+Shift+G'), true);
   assert.deepEqual(JSON.parse(await readFile(join(data, 'preferences.json'), 'utf8')), [{ shortcut: 'Control+Shift+G', language: 'system', appearance: 'system', textLimit: 300, imageLimit: 10, saveFileCopies: false, rememberPage: true }]);
   toggle(); toggle();
-  await waitFor(() => evaluate('Boolean(document.querySelector(".settings-switch"))'), "settings page retained");
+  await waitFor(() => evaluate('Boolean(document.querySelector(".module-tabs"))'), 'reopening settings returns to content');
+  assert.equal(await evaluate('document.querySelectorAll(".module-tab")[0].classList.contains("active")'), true);
   await evaluate('window.gpaster.updatePreferences({rememberPage:false})');
   toggle(); assert.equal(window.isVisible(), false); toggle(); assert.equal(window.isVisible(), true);
   await waitFor(() => evaluate('Boolean(document.querySelector(".module-tabs"))'), 'normal panel on reopen');
@@ -128,6 +129,29 @@ app.whenReady().then(async () => {
   await waitFor(() => evaluate('document.querySelectorAll(".module-tab")[2].classList.contains("active")'), 'screenshots active');
   toggle(); toggle();
   await waitFor(() => evaluate('document.querySelectorAll(".module-tab")[2].classList.contains("active")'), 'screenshots tab retained when rememberPage true');
+  for (const index of [0, 1, 2]) {
+    await evaluate(`document.querySelectorAll(".module-tab")[${index}].click()`);
+    await evaluate('document.querySelector(".settings-entry").click()');
+    await waitFor(() => evaluate('Boolean(document.querySelector(".settings-panel"))'), 'settings open from content');
+    toggle(); toggle();
+    await waitFor(() => evaluate(`document.querySelectorAll(".module-tab")[${index}]?.classList.contains("active")`), 'reopen returns to prior content');
+  }
+  await evaluate('document.querySelectorAll(".module-tab")[1].click()');
+  const createPhrase = async text => {
+    await evaluate('document.querySelector(".module-toolbar .primary-button").click()');
+    await waitFor(() => evaluate('Boolean(document.querySelector("#phrase-content"))'), 'phrase editor');
+    await evaluate(`{ const el = document.querySelector("#phrase-content"); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(el, ${JSON.stringify(text)}); el.dispatchEvent(new Event("input", { bubbles: true })); }`);
+    await evaluate('document.querySelector(".phrase-dialog").requestSubmit()');
+    await waitFor(() => evaluate('document.querySelector(".notice-message")?.textContent.includes("常用语已保存")'), 'phrase saved notice');
+  };
+  await createPhrase('isolated notice timer');
+  await delay(1000);
+  assert.equal(await evaluate('Boolean(document.querySelector(".notice-message"))'), true);
+  await waitFor(() => evaluate('!document.querySelector(".notice-message")'), 'phrase notice expires');
+  await createPhrase('isolated notice on hide');
+  toggle(); toggle();
+  await waitFor(() => evaluate('!document.querySelector(".notice-message")'), 'phrase notice cleared on hide');
+  console.log('PASS phrase notice expires and does not return after hiding the window');
   await evaluate('document.querySelectorAll(".module-tab")[0].click()');
 
   menu.items[1].click();
