@@ -105,7 +105,7 @@ app.whenReady().then(async () => {
   await record('G', ['control', 'shift']);
   await waitFor(async () => (await evaluate('window.gpaster.getPreferences()')).shortcut === 'Control+Shift+G', 'new shortcut');
   assert.equal(bindings.has(DEFAULT_SHORTCUT), false); assert.equal(bindings.has('Control+Shift+G'), true);
-  assert.deepEqual(JSON.parse(await readFile(join(data, 'preferences.json'), 'utf8')), [{ shortcut: 'Control+Shift+G', language: 'system', appearance: 'system', textLimit: 300, imageLimit: 10, saveFileCopies: false }]);
+  assert.deepEqual(JSON.parse(await readFile(join(data, 'preferences.json'), 'utf8')), [{ shortcut: 'Control+Shift+G', captureShortcut: process.platform === 'win32' ? 'Control+Shift+F9' : 'Control+V', rememberPage: true, language: 'system', appearance: 'system', textLimit: 300, imageLimit: 10, saveFileCopies: false }]);
   toggle(); assert.equal(window.isVisible(), false); toggle(); assert.equal(window.isVisible(), true);
   await waitFor(() => evaluate('Boolean(document.querySelector(".module-tabs"))'), 'normal panel on reopen');
   menu.items[1].click();

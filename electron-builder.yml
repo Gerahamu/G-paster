@@ -12,12 +12,16 @@ files:
   - assets/**
   - "!assets/{G-paster.icns,G-paster-brand.png,tray-icon.svg,GpasterTemplate.png,GpasterTemplate@2x.png}"
   - "!assets/localizations/**"
+  - "!assets/windows/**"
   - "!**/*.map"
 
 # Reuse the Electron runtime already present in node_modules instead of re-downloading it.
 electronDist: node_modules/electron/dist
 
 win:
+  extraResources:
+    - from: assets/windows/capture-tools.ps1
+      to: windows/capture-tools.ps1
   target:
     - target: nsis
       arch:

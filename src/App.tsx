@@ -102,6 +102,8 @@ function App() {
   };
   const [entries, setEntries] = useState<ClipboardHistoryItem[]>([]);
   const [phrases, setPhrases] = useState<QuickPhrase[]>([]);
+  const [imageText, setImageText] = useState<Record<string, string>>({});
+  const rememberPage = useRef(DEFAULT_PREFERENCES.rememberPage);
   const [activeModule, setActiveModule] = useState<ModuleName>("history");
   const [showSettings, setShowSettings] = useState(false);
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
@@ -122,6 +124,9 @@ function App() {
     danger?: boolean;
     onConfirm: () => void;
   } | null>(null);
+  const phraseNoticeTimer = useRef<number | undefined>(undefined);
+  const windowVisible = useRef(true);
+  const windowHideGeneration = useRef(0);
   const [editor, setEditor] = useState<PhraseEditorState | null>(null);
   const [editorError, setEditorError] = useState<TranslationKey | "">("");
   const editorInitial = useRef<{ text: string; category: string } | null>(null);
@@ -134,9 +139,16 @@ function App() {
   const categories = useMemo(() => Array.from(new Set(phrases.map((phrase) => phrase.category))).sort((a, b) => a.localeCompare(b, settings.locale)), [phrases, settings.locale]);
 
   useEffect(() => {
+    const refresh = () => { void window.gpaster.listImageText().then(setImageText).catch(() => undefined); };
+    const unsubscribe = window.gpaster.onImageTextChanged(refresh);
+    refresh();
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
     let changed = false;
-    const unsubscribe = window.gpaster.onPreferencesChanged(next => { changed = true; setImageLimit(next.imageLimit); });
-    void window.gpaster.getPreferences().then(next => { if (!changed) setImageLimit(next.imageLimit); }).catch(() => undefined);
+    const unsubscribe = window.gpaster.onPreferencesChanged(next => { changed = true; setImageLimit(next.imageLimit); rememberPage.current = next.rememberPage; });
+    void window.gpaster.getPreferences().then(next => { if (!changed) { setImageLimit(next.imageLimit); rememberPage.current = next.rememberPage; } }).catch(() => undefined);
     return unsubscribe;
   }, []);
 
@@ -179,14 +191,21 @@ function App() {
       setEntries(nextEntries);
       setLoading(false);
     });
-    const unsubscribeHidden = window.gpaster.onWindowHidden(() => setSelectedImages(new Set()));
+    const unsubscribeHidden = window.gpaster.onWindowHidden(() => {
+      windowVisible.current = false;
+      windowHideGeneration.current++;
+      window.clearTimeout(phraseNoticeTimer.current);
+      setNotice(current => current === "常用语已保存。" || current === "图片已保存到常用语。" ? "" : current);
+      setSelectedImages(new Set());
+    });
     const unsubscribeShown = window.gpaster.onWindowShown(() => {
+      windowVisible.current = true;
       setSelectedImages(new Set());
       setShowSettings(false);
       setPreview(null);
       previewRequest.current++;
       setQuery("");
-      setActiveModule("history");
+      if (!rememberPage.current) setActiveModule("history");
       void Promise.all([refreshHistory(), refreshPhrases()]).catch(() => setError("读取本地内容失败。"));
       window.setTimeout(() => searchRef.current?.focus(), 0);
     });
@@ -201,7 +220,7 @@ function App() {
         setError("读取本地内容失败。请稍后重试。");
       });
     const unsubscribeSettings = window.gpaster.onSettingsRequested(() => setShowSettings(true));
-    return () => { unsubscribeHistory(); unsubscribeHidden(); unsubscribeShown(); unsubscribeIssues(); unsubscribeSettings(); };
+    return () => { window.clearTimeout(phraseNoticeTimer.current); unsubscribeHistory(); unsubscribeHidden(); unsubscribeShown(); unsubscribeIssues(); unsubscribeSettings(); };
   }, []);
 
   useEffect(() => {
@@ -238,20 +257,21 @@ function App() {
   const filteredEntries = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase();
     return normalized ? historyEntries.filter((entry) => entry.content.toLocaleLowerCase().includes(normalized) || displayContent(entry).toLocaleLowerCase().includes(normalized) ||
-      (entry.kind === "file" && entry.files.some(file => file.originalPath.toLocaleLowerCase().includes(normalized)))) : historyEntries;
-  }, [historyEntries, deferredQuery, settings.language]);
+      (entry.kind === "image" && (imageText[`image:${entry.id}`] ?? "").toLocaleLowerCase().includes(normalized)) ||
+      (entry.kind === "file" && ((imageText[`file:${entry.id}`] ?? "").toLocaleLowerCase().includes(normalized) || entry.files.some(file => file.originalPath.toLocaleLowerCase().includes(normalized))))) : historyEntries;
+  }, [historyEntries, deferredQuery, settings.language, imageText]);
 
   const filteredPhrases = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase();
     return phrases.filter((phrase) => (category === "" || phrase.category === category) &&
       (!normalized || phrase.text.toLocaleLowerCase().includes(normalized) || phrase.category.toLocaleLowerCase().includes(normalized) || displayCategory(phrase.category).toLocaleLowerCase().includes(normalized) ||
-        (phrase.kind === "image" && `${phrase.image?.width ?? ""} × ${phrase.image?.height ?? ""}`.includes(normalized))));
-  }, [phrases, deferredQuery, category, settings.language]);
+        (phrase.kind === "image" && (`${phrase.image?.width ?? ""} × ${phrase.image?.height ?? ""}`.includes(normalized) || (imageText[`phrase:${phrase.id}`] ?? "").toLocaleLowerCase().includes(normalized)))));
+  }, [phrases, deferredQuery, category, settings.language, imageText]);
 
   const filteredImages = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase();
-    return images.filter((image) => !normalized || image.content.toLocaleLowerCase().includes(normalized) || displayContent(image).toLocaleLowerCase().includes(normalized));
-  }, [images, deferredQuery, settings.language]);
+    return images.filter((image) => !normalized || image.content.toLocaleLowerCase().includes(normalized) || displayContent(image).toLocaleLowerCase().includes(normalized) || (imageText[`image:${image.id}`] ?? "").toLocaleLowerCase().includes(normalized));
+  }, [images, deferredQuery, settings.language, imageText]);
 
   useEffect(() => {
     const visible = new Set(filteredImages.map(image => image.id));
@@ -368,17 +388,28 @@ function App() {
     } catch { setError("保存图片失败，请重试。"); }
   }
 
+  function showPhraseNotice(message: "常用语已保存。" | "图片已保存到常用语。", generation: number): void {
+    if (!windowVisible.current || generation !== windowHideGeneration.current) return;
+    window.clearTimeout(phraseNoticeTimer.current);
+    setNotice(message);
+    phraseNoticeTimer.current = window.setTimeout(() => {
+      setNotice(current => current === message ? "" : current);
+    }, 3000);
+  }
+
   async function saveImageAsPhrase(id: string): Promise<void> {
+    const hideGeneration = windowHideGeneration.current;
     setError("");
     try {
       const saved = await window.gpaster.saveImageAsPhrase(id);
       if (!saved) { setError("无法保存这张图片为常用语。"); return; }
       await refreshPhrases();
-      setNotice("图片已保存到常用语。");
+      showPhraseNotice("图片已保存到常用语。", hideGeneration);
     } catch { setError("无法保存这张图片为常用语。"); }
   }
 
   async function performImportPhraseImage(): Promise<void> {
+    const hideGeneration = windowHideGeneration.current;
     if (!editor || editor.id || editor.sourceHistoryId) return;
     setEditorError("");
     try {
@@ -393,7 +424,7 @@ function App() {
       await refreshPhrases();
       setEditor(null);
       editorInitial.current = null;
-      setNotice("图片已保存到常用语。");
+      showPhraseNotice("图片已保存到常用语。", hideGeneration);
     } catch { setEditorError("无法保存这张图片为常用语。"); }
   }
 
@@ -426,6 +457,7 @@ function App() {
   async function savePhrase(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!editor) return;
+    const hideGeneration = windowHideGeneration.current;
     setEditorError("");
     try {
       if (!editor.text.trim()) throw new Error("常用语内容不能为空。");
@@ -445,8 +477,8 @@ function App() {
       await refreshPhrases();
       setEditor(null);
       editorInitial.current = null;
-      setActiveModule("phrases");
-      setNotice("常用语已保存。");
+      if (windowVisible.current && hideGeneration === windowHideGeneration.current) setActiveModule("phrases");
+      showPhraseNotice("常用语已保存。", hideGeneration);
     } catch (saveError) {
       setEditorError(errorKey(saveError, "保存常用语失败。"));
     }
@@ -479,7 +511,7 @@ function App() {
     setShowSettings(false);
     window.setTimeout(() => searchRef.current?.focus(), 0);
   }
-  const searchPlaceholderKey = activeModule === "history" ? "搜索剪贴板内容" : activeModule === "phrases" ? "搜索常用语或分类" : "搜索图片尺寸";
+  const searchPlaceholderKey = activeModule === "history" ? "搜索剪贴板内容" : activeModule === "phrases" ? "搜索常用语或分类" : "搜索图片文字或尺寸";
 
   const searchPlaceholder = t(searchPlaceholderKey);
 
@@ -554,7 +586,7 @@ function App() {
               <button className="image-preview-button" type="button" draggable={!image.unavailable} onPointerDown={() => { imageDragStarted.current = false; }} onDragStart={(event) => { const ids = selectedImages.has(image.id) ? filteredImages.filter(item => selectedImages.has(item.id)).map(item => item.id) : [image.id]; if (!selectedImages.has(image.id)) setSelectedImages(new Set([image.id])); startImageDrag(event, image.id, ids); }} onClick={(event) => { if (event.detail !== 0 && imageDragStarted.current) return; if (event.metaKey || event.ctrlKey) toggleImageSelection(image.id); else void copyEntry(image); }} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); void openImage(image); }} aria-label={image.unavailable ? t("图片不可用") : t("复制图片 {width} × {height}", { width: image.width, height: image.height })} title={image.unavailable ? t("图片不可用") : t("单击复制，右击查看详情")}><img src={image.previewDataUrl} alt={t(image.unavailable ? "图片不可用" : "剪贴板图片")} draggable={false} style={{ maxWidth: image.width, maxHeight: image.height }} /><span className="image-dimensions">{image.unavailable ? t("图片不可用") : `${image.width} × ${image.height}`}</span></button>
               <div className="image-card-footer"><time dateTime={safeIsoDate(image.copiedAt)}>{formatTime(image.copiedAt)}</time><div className="entry-actions"><button className="icon-button" type="button" disabled={image.unavailable} onClick={() => void saveImageAsPhrase(image.id)} aria-label={t("保存图片到常用语")} title={t("保存图片到常用语")}><Icon name="bookmark" size={14} /></button><button className="icon-button" type="button" disabled={image.unavailable} onClick={() => void copyEntry(image)} aria-label={t("复制图片回剪贴板")} title={t("复制图片")}><Icon name="copy" size={14} /></button><button className="icon-button" type="button" disabled={image.unavailable} onClick={() => void saveImage(image.id)} aria-label={t("保存图片到本地")} title={t("保存到本地")}><Icon name="save" size={14} /></button><button className="icon-button delete-button" type="button" onClick={() => void deleteEntry(image.id)} aria-label={t("删除图片")} title={t("删除")}><Icon name="trash" size={14} /></button></div></div>
             </article>)}
-          </div> : <div className="empty-state"><span className="empty-icon"><Icon name={query ? "search" : "image"} size={18} /></span><strong>{t(query ? "没有找到这类图片" : "截图中转站还空着")}</strong><span>{t(query ? "试试输入图片尺寸。" : "保存截图后，会自动收集最近 {limit} 张。", { limit: imageLimit })}</span></div>}
+          </div> : <div className="empty-state"><span className="empty-icon"><Icon name={query ? "search" : "image"} size={18} /></span><strong>{t(query ? "没有找到这类图片" : "截图中转站还空着")}</strong><span>{t(query ? "试试输入图片文字或尺寸。" : "保存截图后，会自动收集最近 {limit} 张。", { limit: imageLimit })}</span></div>}
           <div className="module-toolbar screenshot-footer"><span className="toolbar-caption">{t("截图 {screenshots} 张 · 图片池 {count}/{limit}", { screenshots: images.length, count: allImages.length, limit: imageLimit })}</span><span className="toolbar-spacer" />{selectedImages.size > 0 && <button className="settings-link" type="button" onClick={() => setSelectedImages(new Set())}>{t("已选择 {count} 张 · 取消选择", { count: selectedImages.size })}</button>}</div>
         </section>}
       </section>}

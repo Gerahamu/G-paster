@@ -1,6 +1,6 @@
 {
   "name": "gpaster",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "productName": "G-paster",
   "private": true,
   "description": "A focused desktop clipboard history for macOS and Windows.",
@@ -12,7 +12,7 @@
     "build:main": "node scripts/clean-electron-build.mjs && tsc -p tsconfig.electron.json",
     "build:renderer": "vite build",
     "typecheck": "tsc -p tsconfig.electron.json --noEmit && tsc -p tsconfig.renderer.json",
-    "test": "tsc --module Node16 --moduleResolution Node16 --target ES2022 --rootDir . --outDir work/test-build --esModuleInterop --skipLibCheck --types node electron/history-store.test.ts electron/local-stores.test.ts electron/atomic-json.test.ts electron/async-timeout.test.ts electron/trusted-origin.test.ts electron/clipboard-images.test.ts electron/screenshot-monitor.test.ts electron/i18n.test.ts electron/preferences.test.ts electron/file-store.test.ts && node --test work/test-build/electron/history-store.test.js work/test-build/electron/local-stores.test.js work/test-build/electron/atomic-json.test.js work/test-build/electron/async-timeout.test.js work/test-build/electron/trusted-origin.test.js work/test-build/electron/clipboard-images.test.js work/test-build/electron/screenshot-monitor.test.js work/test-build/electron/i18n.test.js work/test-build/electron/preferences.test.js work/test-build/electron/file-store.test.js scripts/test-windows-artifact-delivery.mjs",
+    "test": "tsc --module Node16 --moduleResolution Node16 --target ES2022 --rootDir . --outDir work/test-build --esModuleInterop --skipLibCheck --types node electron/history-store.test.ts electron/local-stores.test.ts electron/atomic-json.test.ts electron/async-timeout.test.ts electron/trusted-origin.test.ts electron/clipboard-images.test.ts electron/screenshot-monitor.test.ts electron/i18n.test.ts electron/preferences.test.ts electron/file-store.test.ts electron/ocr-index.test.ts electron/capture-geometry.test.ts && node --test work/test-build/electron/history-store.test.js work/test-build/electron/local-stores.test.js work/test-build/electron/atomic-json.test.js work/test-build/electron/async-timeout.test.js work/test-build/electron/trusted-origin.test.js work/test-build/electron/clipboard-images.test.js work/test-build/electron/screenshot-monitor.test.js work/test-build/electron/i18n.test.js work/test-build/electron/preferences.test.js work/test-build/electron/file-store.test.js work/test-build/electron/ocr-index.test.js work/test-build/electron/capture-geometry.test.js scripts/test-windows-artifact-delivery.mjs",
     "desktop": "npm run build && electron .",
     "package:mac": "node scripts/package-macos.mjs",
     "package:mac:unsigned": "node scripts/package-macos.mjs --unsigned",

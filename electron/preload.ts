@@ -25,6 +25,7 @@ const bridge: GpasterBridge = {
     return () => ipcRenderer.removeListener("preferences:changed", listener);
   },
   setShortcut: (shortcut) => ipcRenderer.invoke("preferences:shortcut", shortcut),
+  setCaptureShortcut: (shortcut) => ipcRenderer.invoke("preferences:capture-shortcut", shortcut),
   setOpenAtLogin: (enabled) => ipcRenderer.invoke("preferences:login", enabled),
   setShortcutRecording: (recording) => ipcRenderer.invoke("preferences:recording", recording),
   openDataDirectory: () => ipcRenderer.invoke("preferences:open-data"),
@@ -47,6 +48,12 @@ const bridge: GpasterBridge = {
     return () => ipcRenderer.removeListener("capture:issues-changed", listener);
   },
   listHistory: async () => (await ipcRenderer.invoke("history:list")) as ClipboardHistoryItem[],
+  listImageText: async () => (await ipcRenderer.invoke("ocr:list")) as Record<string, string>,
+  onImageTextChanged: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on("ocr:changed", listener);
+    return () => ipcRenderer.removeListener("ocr:changed", listener);
+  },
   deleteHistory: async (id) => (await ipcRenderer.invoke("history:delete", id)) as boolean,
   clearHistory: async () => {
     await ipcRenderer.invoke("history:clear");

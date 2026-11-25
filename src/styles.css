@@ -273,13 +273,13 @@ input:focus-visible {
   display: flex;
   height: 36px;
   min-height: 36px;
-  gap: 3px;
+  gap: 4px;
   padding: 3px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--nav);
   backdrop-filter: blur(24px);
-  box-shadow: var(--panel-shadow);
+  box-shadow: none;
 }
 
 .module-tab {
@@ -306,7 +306,7 @@ input:focus-visible {
 .module-tab.active {
   background: var(--surface);
   color: var(--ink);
-  box-shadow: 0 1px 3px var(--tab-shadow);
+  box-shadow: 0 1px 4px var(--tab-shadow);
 }
 
 .tab-count {
@@ -340,7 +340,7 @@ input:focus-visible {
   height: 36px;
   min-height: 36px;
   gap: 7px;
-  padding: 0 9px;
+  padding: 0 11px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--surface);
@@ -461,8 +461,8 @@ kbd {
   min-height: 54px;
   flex: 0 0 54px;
   align-items: center;
-  gap: 7px;
-  padding: 4px 7px;
+  gap: 9px;
+  padding: 4px 9px;
   border: 1px solid var(--line);
   border-radius: 9px;
   background: var(--surface);
@@ -470,7 +470,7 @@ kbd {
 }
 
 .history-item:hover {
-  border-color: var(--line);
+  border-color: color-mix(in srgb, var(--ink) 16%, transparent);
 }
 
 .entry-kind {

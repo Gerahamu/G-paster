@@ -24,6 +24,11 @@ export class FileImages {
     catch { return null; } // Invalid, oversized or unavailable files remain ordinary references.
   }
 
+  async ocrPath(entry: ClipboardFileEntry): Promise<string | undefined> {
+    if (!entry.available || !this.isCandidate(entry)) return;
+    return (await this.files.resolvePaths(entry.id))?.[0];
+  }
+
   async read(id: string): Promise<DecodedImage | null> {
     const entry = await this.files.get(id);
     if (!entry || !this.isCandidate(entry)) return null;

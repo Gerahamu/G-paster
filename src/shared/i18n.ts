@@ -1,6 +1,14 @@
 export type UiLanguage = "zh" | "en";
 
 const english = {
+  "区域截图": "Capture region",
+  "框选屏幕并保存或识别文字。": "Select an area to save or recognize text.",
+  "更改截图快捷键": "Change capture shortcut",
+  "截图快捷键未生效，请更换组合。": "Capture shortcut unavailable. Choose another.",
+  "试试输入图片文字或尺寸。": "Try entering image text or dimensions.",
+  "搜索图片文字或尺寸": "Search image text or size",
+  "记住上次页面": "Remember last page",
+  "再次打开窗口时保留上次页面；关闭后默认打开剪贴板。": "Keep the last page when reopening the window. When disabled, open Clipboard.",
   "添加图片": "Add image",
   "添加图片会丢弃当前文字草稿，继续？": "Adding an image will discard the current text draft. Continue?",
   "图片": "Image",

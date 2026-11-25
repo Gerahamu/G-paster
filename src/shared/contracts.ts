@@ -10,6 +10,9 @@ export interface AppPreferences extends EditablePreferences {
   shortcut: string;
   defaultShortcut: string;
   shortcutRegistered: boolean;
+  captureShortcut: string;
+  defaultCaptureShortcut: string;
+  captureShortcutRegistered: boolean;
   loginSupported: boolean;
   openAtLogin: boolean;
   loginStatus: "enabled" | "disabled" | "requires-approval" | "unavailable";
@@ -102,6 +105,7 @@ export interface GpasterBridge {
   updatePreferences(patch: Partial<EditablePreferences>): Promise<PreferenceResult>;
   onPreferencesChanged(callback: (preferences: AppPreferences) => void): () => void;
   setShortcut(shortcut: string): Promise<PreferenceResult>;
+  setCaptureShortcut(shortcut: string): Promise<PreferenceResult>;
   setOpenAtLogin(enabled: boolean): Promise<PreferenceResult>;
   setShortcutRecording(recording: boolean): Promise<void>;
   openDataDirectory(): Promise<boolean>;
@@ -112,6 +116,8 @@ export interface GpasterBridge {
   listCaptureIssues(): Promise<CaptureIssue[]>;
   onCaptureIssuesChanged(callback: (issues: CaptureIssue[]) => void): () => void;
   listHistory(): Promise<ClipboardHistoryItem[]>;
+  listImageText(): Promise<Record<string, string>>;
+  onImageTextChanged(callback: () => void): () => void;
   deleteHistory(id: string): Promise<boolean>;
   clearHistory(): Promise<void>;
   copyHistory(id: string): Promise<boolean>;

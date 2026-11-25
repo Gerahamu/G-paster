@@ -37,6 +37,7 @@ function requireFile(path, label) {
 
 async function verifyPackagerOutput() {
   requireFile(exePath, "Executable");
+  requireFile(join(appDirectory, "resources", "windows", "capture-tools.ps1"), "Windows capture helper");
   const asarPath = join(appDirectory, "resources", "app.asar");
   requireFile(asarPath, "app.asar");
   const entries = capture(node, [asarEntry, "list", asarPath], "asar listing")
@@ -44,7 +45,8 @@ async function verifyPackagerOutput() {
   const required = [
     "package.json", "dist/index.html", "dist-electron/electron/main.js",
     "dist-electron/electron/preload.js", "assets/G-paster-icon.png", "assets/GpasterTray.png",
-    "assets/GpasterTray-white.png"
+    "assets/GpasterTray-white.png", "assets/region-capture.html", "assets/region-capture.css",
+    "assets/region-capture.js", "dist-electron/electron/region-capture-preload.js"
   ];
   for (const entry of required) {
     if (!entries.includes(entry)) throw new Error(`app.asar is missing ${entry}`);
@@ -61,6 +63,7 @@ async function verifyPackagerOutput() {
 
 async function verifyInstallerOutput() {
   const installerDir = resolve(root, "work/installer");
+  requireFile(join(installerDir, "win-unpacked", "resources", "windows", "capture-tools.ps1"), "NSIS capture helper");
   const pkg = JSON.parse(capture(node, ["-e", "console.log(JSON.stringify(require('./package.json')) )"], "read package.json"));
   const version = pkg.version;
   const nsisPath = join(installerDir, `Gpaster-Setup-${version}-win-x64.exe`);
@@ -86,10 +89,10 @@ async function main() {
   const args = [
     ".", "G-paster",
     "--platform=win32", "--arch=x64", "--asar", `--out=${outputDirectory}`, "--overwrite",
-    "--icon=assets/G-paster.ico",
+    "--icon=assets/G-paster.ico", "--extra-resource=assets/windows",
     "--ignore=" + [
       "^/(work|outputs|src|electron|scripts|docs|WINDOWS-HANDOFF)(/|$)",
-      "^/node_modules(/|$)",
+      "^/node_modules(/|$)", "^/assets/windows(/|$)",
       "^/(README\\.md|CHANGELOG\\.md|index\\.html|vite\\.config\\.mts|tsconfig\\.[^/]+\\.json|\\.gitignore|package-lock\\.json|Windows开发提示词\\.md)$",
       "^/assets/(G-paster\\.icns|G-paster-brand\\.png|tray-icon\\.svg|GpasterTemplate(@2x)?\\.png|localizations)(/|$)"
     ].join("|")

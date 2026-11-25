@@ -20,6 +20,7 @@ export default function SettingsPanel({ system, onBack }: { system: SystemSettin
   const [notice, setNotice] = useState<TranslationKey | "">("");
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
+  const recordingTarget = useRef<"panel" | "capture">("panel");
   const [textLimit, setTextLimit] = useState("");
   const [imageLimit, setImageLimit] = useState("");
   const dirtyLimits = useRef(false);
@@ -45,12 +46,24 @@ export default function SettingsPanel({ system, onBack }: { system: SystemSettin
     });
     void refresh();
     const onFocus = () => { void refresh(); };
+    const onBlur = () => {
+      setRecording(false);
+      void window.gpaster.setShortcutRecording(false).catch(() => undefined);
+    };
+    const unsubscribeHidden = window.gpaster.onWindowHidden(() => {
+      flushLimits();
+      setRecording(false);
+      void window.gpaster.setShortcutRecording(false).catch(() => undefined);
+    });
     window.addEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
     return () => {
       flushLimits();
       alive.current = false;
       unsubscribe();
+      unsubscribeHidden();
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("blur", onBlur);
       void window.gpaster.setShortcutRecording(false).catch(() => undefined);
     };
   }, []);
@@ -106,8 +119,9 @@ export default function SettingsPanel({ system, onBack }: { system: SystemSettin
     } catch { if (alive.current && revision === limitRevision.current) setError("设置保存失败，请重试。"); }
   }
 
-  async function startRecording() {
+  async function startRecording(target: "panel" | "capture" = "panel") {
     setBusy(true); setError(""); setNotice("");
+    recordingTarget.current = target;
     try {
       await window.gpaster.setShortcutRecording(true);
       if (!alive.current) { await window.gpaster.setShortcutRecording(false); return; }
@@ -128,7 +142,7 @@ export default function SettingsPanel({ system, onBack }: { system: SystemSettin
     const candidate = shortcutFromKey(event, window.gpaster.platform);
     if (!candidate) { setError(failureKeys["shortcut-invalid"]); return; }
     setRecording(false);
-    void apply(() => window.gpaster.setShortcut(candidate), true);
+    void apply(() => recordingTarget.current === "capture" ? window.gpaster.setCaptureShortcut(candidate) : window.gpaster.setShortcut(candidate), true);
   }
 
   return <section className="settings-panel" aria-label={t("设置")}>
@@ -139,8 +153,9 @@ export default function SettingsPanel({ system, onBack }: { system: SystemSettin
       {!preferences ? !error && <div className="empty-state"><span className="loading-dot" /></div> : <>
         <section className="settings-section" aria-labelledby="general-heading"><h2 id="general-heading">{t("使用习惯")}</h2>
           <div className="settings-group">
-            <div className="settings-row shortcut-row"><div className="settings-copy"><strong>{t("打开 / 收起面板")}</strong><span>{t("再按一次快捷键即可收起。")}</span></div><div className="shortcut-control"><kbd>{displayShortcut(preferences.shortcut, window.gpaster.platform)}</kbd><button ref={recordButton} className={"settings-action" + (recording ? " recording" : "")} type="button" disabled={busy} onClick={() => recording ? cancelRecording() : void startRecording()} onKeyDown={recordKey} onBlur={() => { if (recording) cancelRecording(); }} aria-label={t("更改快捷键")}>{t(recording ? "按下新组合键" : "更改")}</button></div></div>
+            <div className="settings-row shortcut-row"><div className="settings-copy"><strong>{t("打开 / 收起面板")}</strong><span>{t("再按一次快捷键即可收起。")}</span></div><div className="shortcut-control"><kbd>{displayShortcut(preferences.shortcut, window.gpaster.platform)}</kbd><button ref={recordingTarget.current === "panel" ? recordButton : undefined} className={"settings-action" + (recording && recordingTarget.current === "panel" ? " recording" : "")} type="button" disabled={busy || (recording && recordingTarget.current !== "panel")} onClick={() => recording ? cancelRecording() : void startRecording("panel")} onKeyDown={recordKey} onBlur={() => { if (recording) cancelRecording(); }} aria-label={t("更改快捷键")}>{t(recording && recordingTarget.current === "panel" ? "按下新组合键" : "更改")}</button></div></div>
             <div className="settings-shortcut-footer"><span>{recording ? t("按 Esc 取消") : !preferences.shortcutRegistered ? t(window.gpaster.platform === "darwin" ? "快捷键未生效，可更换组合或使用菜单栏打开。" : "快捷键未生效，可更换组合或使用系统托盘打开。") : ""}</span><button className="settings-link" disabled={busy || recording || preferences.shortcut === preferences.defaultShortcut} type="button" onClick={() => void apply(() => window.gpaster.setShortcut(preferences.defaultShortcut), true)}>{t("恢复默认")}</button></div>
+            {["darwin", "win32"].includes(window.gpaster.platform) && <><div className="settings-row shortcut-row"><div className="settings-copy"><strong>{t("区域截图")}</strong><span>{t("框选屏幕并保存或识别文字。")}</span></div><div className="shortcut-control"><kbd>{displayShortcut(preferences.captureShortcut, window.gpaster.platform)}</kbd><button ref={recordingTarget.current === "capture" ? recordButton : undefined} className={"settings-action" + (recording && recordingTarget.current === "capture" ? " recording" : "")} type="button" disabled={busy || (recording && recordingTarget.current !== "capture")} onClick={() => recording ? cancelRecording() : void startRecording("capture")} onKeyDown={recordKey} onBlur={() => { if (recording) cancelRecording(); }} aria-label={t("更改截图快捷键")}>{t(recording && recordingTarget.current === "capture" ? "按下新组合键" : "更改")}</button></div></div><div className="settings-shortcut-footer"><span>{!preferences.captureShortcutRegistered ? t("截图快捷键未生效，请更换组合。") : ""}</span><button className="settings-link" disabled={busy || recording || preferences.captureShortcut === preferences.defaultCaptureShortcut} type="button" onClick={() => void apply(() => window.gpaster.setCaptureShortcut(preferences.defaultCaptureShortcut), true)}>{t("恢复默认")}</button></div></>}
             <div className="settings-row"><div className="settings-copy"><strong>{t("开机启动")}</strong><span>{t(!preferences.loginSupported ? "安装版可设置开机启动。" : preferences.loginStatus === "unavailable" ? "无法读取开机启动状态，请检查系统登录项。" : preferences.loginStatus === "requires-approval" ? "需在系统登录项中允许启动。" : "登录后在后台运行。")}</span></div><button className="settings-switch" type="button" role="switch" aria-checked={preferences.openAtLogin || preferences.loginStatus === "requires-approval"} aria-label={t("开机启动")} disabled={busy || recording || !preferences.loginSupported || preferences.loginStatus === "unavailable"} onClick={() => void apply(() => window.gpaster.setOpenAtLogin(!(preferences.openAtLogin || preferences.loginStatus === "requires-approval")))}><span /></button></div>
           </div>
         </section>
@@ -154,6 +169,7 @@ export default function SettingsPanel({ system, onBack }: { system: SystemSettin
             <div className="settings-row"><label htmlFor="image-limit">{t("图片与截图")}</label><input id="image-limit" className="settings-number" type="number" min={IMAGE_LIMIT_RANGE.min} max={IMAGE_LIMIT_RANGE.max} step="1" value={imageLimit} disabled={busy || recording} onBlur={flushLimits} onChange={event => { dirtyLimits.current = true; setImageLimit(event.target.value); scheduleLimits(textLimit, event.target.value); }} /></div>
             <div className="settings-row limits-actions"><button className="settings-link" type="button" disabled={busy || recording} onClick={() => { scheduleLimits(String(DEFAULT_PREFERENCES.textLimit), String(DEFAULT_PREFERENCES.imageLimit)); flushLimits(); }}>{t("恢复默认数量")}</button></div>
           </form>
+          <div className="settings-row"><div className="settings-copy"><strong>{t("记住上次页面")}</strong><span>{t("再次打开窗口时保留上次页面；关闭后默认打开剪贴板。")}</span></div><button className="settings-switch" type="button" role="switch" aria-checked={preferences.rememberPage} aria-label={t("记住上次页面")} disabled={busy || recording} onClick={() => void apply(() => window.gpaster.updatePreferences({ rememberPage: !preferences.rememberPage }))}><span /></button></div>
           <div className="settings-row"><div className="settings-copy"><strong>{t("保存文件副本")}</strong><span>{t("仅影响之后收集的文件。单批 100 MB，总副本 500 MB；超限保留引用并提示。删除历史会移除副本，原文件不变。")}</span></div><button className="settings-switch" type="button" role="switch" aria-checked={preferences.saveFileCopies} aria-label={t("保存文件副本")} disabled={busy || recording} onClick={() => void apply(() => window.gpaster.updatePreferences({ saveFileCopies: !preferences.saveFileCopies }))}><span /></button></div>
           <div className="settings-row"><div className="settings-copy"><span>{t("仅存储在本机，原截图保持不变。")}</span></div><button className="settings-action" type="button" onClick={() => { void window.gpaster.openDataDirectory().then(ok => { if (!ok) setError("无法打开数据文件夹。"); }).catch(() => setError("无法打开数据文件夹。")); }}>{t("打开数据文件夹")}</button></div>
         </div><p className="settings-caption">{t("更改自动保存并生效；常用语不受此上限影响。")}</p></section>
