@@ -6,22 +6,29 @@
 
 **复制、查找，再接着做。**
 
-一个为 macOS 设计的本地剪贴板工具。<br />
-把文字、图片、文件、常用语和截图收进一个轻巧的面板。
+剪贴板、常用语和截图，收进一个轻巧的本地工作面板。<br />
+复制过的内容，随时可以再找到。
 
 ![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-262626?style=flat-square)
 ![本地处理](https://img.shields.io/badge/处理-本地完成-707786?style=flat-square)
 
-[macOS v1.10 下载](https://github.com/Gerahamu/G-paster/releases/download/v1.10/G-paster-v1.10-macos-arm64.zip) · [Windows v1.1.0](https://github.com/Gerahamu/G-paster/releases/tag/v1.1.0-windows) · [快速开始](#快速开始) · [功能](#功能) · [开发构建](#开发构建)
+**[下载 macOS v1.10](https://github.com/Gerahamu/G-paster/releases/download/v1.10/G-paster-v1.10-macos-arm64.zip)**　·　**[Windows v1.1.0](https://github.com/Gerahamu/G-paster/releases/tag/v1.1.0-windows)**
+
+[快速开始](#快速开始)　·　[功能介绍](#功能)　·　[开发构建](#开发构建)
+
+<br />
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/hero-dark.png" />
-  <img src="docs/readme/hero-light.png" width="1060" alt="G-paster 剪贴板面板示意" />
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/app-dark.png" />
+  <img src="docs/readme/app-light.png" width="400" alt="G-paster v1.10 剪贴板面板，展示文字和链接记录" />
 </picture>
 
-<sub>示意图使用虚构内容。界面以实际应用为准。</sub>
+<br />
+<sub>G-paster v1.10 · 实际界面 · 示例内容</sub>
 
 </div>
+
+<br />
 
 ## 功能
 
