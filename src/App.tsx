@@ -102,6 +102,7 @@ function App() {
   };
   const [entries, setEntries] = useState<ClipboardHistoryItem[]>([]);
   const [phrases, setPhrases] = useState<QuickPhrase[]>([]);
+  const [imageText, setImageText] = useState<Record<string, string>>({});
   const rememberPage = useRef(DEFAULT_PREFERENCES.rememberPage);
   const [activeModule, setActiveModule] = useState<ModuleName>("history");
   const [showSettings, setShowSettings] = useState(false);
@@ -128,6 +129,13 @@ function App() {
   const images = useMemo(() => allImages.filter(image => image.sources.length === 0 || image.sources.includes("screenshot")), [allImages]);
   const historyEntries = useMemo(() => entries.filter(entry => !isImageEntry(entry) || entry.sources.includes("clipboard")), [entries]);
   const categories = useMemo(() => Array.from(new Set(phrases.map((phrase) => phrase.category))).sort((a, b) => a.localeCompare(b, settings.locale)), [phrases, settings.locale]);
+
+  useEffect(() => {
+    const refresh = () => { void window.gpaster.listImageText().then(setImageText).catch(() => undefined); };
+    const unsubscribe = window.gpaster.onImageTextChanged(refresh);
+    refresh();
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     let changed = false;
@@ -240,20 +248,21 @@ function App() {
   const filteredEntries = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase();
     return normalized ? historyEntries.filter((entry) => entry.content.toLocaleLowerCase().includes(normalized) || displayContent(entry).toLocaleLowerCase().includes(normalized) ||
+      (entry.kind === "image" && (imageText[`image:${entry.id}`] ?? "").toLocaleLowerCase().includes(normalized)) ||
       (entry.kind === "file" && entry.files.some(file => file.originalPath.toLocaleLowerCase().includes(normalized)))) : historyEntries;
-  }, [historyEntries, deferredQuery, settings.language]);
+  }, [historyEntries, deferredQuery, settings.language, imageText]);
 
   const filteredPhrases = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase();
     return phrases.filter((phrase) => (category === "" || phrase.category === category) &&
       (!normalized || phrase.text.toLocaleLowerCase().includes(normalized) || phrase.category.toLocaleLowerCase().includes(normalized) || displayCategory(phrase.category).toLocaleLowerCase().includes(normalized) ||
-        (phrase.kind === "image" && `${phrase.image?.width ?? ""} × ${phrase.image?.height ?? ""}`.includes(normalized))));
-  }, [phrases, deferredQuery, category, settings.language]);
+        (phrase.kind === "image" && (`${phrase.image?.width ?? ""} × ${phrase.image?.height ?? ""}`.includes(normalized) || (imageText[`phrase:${phrase.id}`] ?? "").toLocaleLowerCase().includes(normalized)))));
+  }, [phrases, deferredQuery, category, settings.language, imageText]);
 
   const filteredImages = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase();
-    return images.filter((image) => !normalized || image.content.toLocaleLowerCase().includes(normalized) || displayContent(image).toLocaleLowerCase().includes(normalized));
-  }, [images, deferredQuery, settings.language]);
+    return images.filter((image) => !normalized || image.content.toLocaleLowerCase().includes(normalized) || displayContent(image).toLocaleLowerCase().includes(normalized) || (imageText[`image:${image.id}`] ?? "").toLocaleLowerCase().includes(normalized));
+  }, [images, deferredQuery, settings.language, imageText]);
 
   useEffect(() => {
     const visible = new Set(filteredImages.map(image => image.id));
@@ -438,7 +447,7 @@ function App() {
     setShowSettings(false);
     window.setTimeout(() => searchRef.current?.focus(), 0);
   }
-  const searchPlaceholderKey = activeModule === "history" ? "搜索剪贴板内容" : activeModule === "phrases" ? "搜索常用语或分类" : "搜索图片尺寸";
+  const searchPlaceholderKey = activeModule === "history" ? "搜索剪贴板内容" : activeModule === "phrases" ? "搜索常用语或分类" : "搜索图片文字或尺寸";
 
   const searchPlaceholder = t(searchPlaceholderKey);
 

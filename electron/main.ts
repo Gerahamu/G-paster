@@ -34,6 +34,9 @@ import { ClipboardFormatRead, ClipboardPollingTimer } from "./clipboard-monitor"
 import { fileReferenceKey, fileUriList, imageFileReferenceKey, isFileClipboardType, isNativeFileUrlType, NATIVE_FILE_URL, readFileItems } from "./clipboard-files";
 import { FileStore, type StoredFileEntry } from "./file-store";
 import { FileImages } from "./file-images";
+import { OcrIndex } from "./ocr-index";
+import { captureRegion, RegionCaptureError } from "./region-capture";
+import { CaptureFeedback } from "./capture-feedback";
 import { readImageFile } from "./image-limits";
 import { readSystemSettings } from "./system-settings";
 import { consumeCorruptionEvents } from "./atomic-json";
@@ -55,6 +58,8 @@ let imageStore: ImageStore;
 let phraseStore: PhraseStore;
 let fileStore: FileStore;
 let fileImages: FileImages;
+let ocrIndex: OcrIndex | undefined;
+let ocrReconcileGeneration = 0;
 let screenshotMonitor: ScreenshotMonitor | null = null;
 let lastClipboardText = "";
 let nextTextPollAt = 0;
@@ -68,6 +73,7 @@ let nextImagePayloadProbeAt = 0;
 let historyLimitQueue: Promise<void> = Promise.resolve();
 let isQuitting = false;
 let isNativeDialogOpen = false;
+let isRegionCaptureActive = false;
 let isPolling = false;
 let isPollingImage = false;
 let imageCaptureGeneration = 0;
@@ -164,6 +170,7 @@ function readPreferences(): AppPreferences {
     } catch { loginStatus = "unavailable"; }
   }
   return { shortcut: preferences.shortcut, defaultShortcut: preferences.defaultShortcut, shortcutRegistered: preferences.registered,
+    captureShortcut: preferences.captureShortcut, captureShortcutRegistered: preferences.captureRegistered,
     loginSupported, openAtLogin, loginStatus,
     version: app.getVersion(), ...preferences.options };
 }
@@ -310,6 +317,12 @@ function registerPreferencesIpc(): void {
     assertTrustedWindow(event);
     setShortcutRecording(false);
     const error = await preferences.setShortcut(shortcut);
+    return { settings: publishPreferences(), error };
+  });
+  ipcMain.handle("preferences:capture-shortcut", async (event, shortcut: unknown) => {
+    assertTrustedWindow(event);
+    setShortcutRecording(false);
+    const error = await preferences.setCaptureShortcut(shortcut);
     return { settings: publishPreferences(), error };
   });
   ipcMain.handle("preferences:recording", (event, recording: unknown) => {
@@ -473,9 +486,33 @@ function savePendingFileCopy(entry: StoredFileEntry): void {
 async function publishHistory(): Promise<void> {
   const generation = ++historyPublishGeneration;
   const entries = await listCombinedHistory();
+  scheduleOcrReconcile();
   if (generation === historyPublishGeneration && mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("history:changed", entries);
   }
+}
+
+async function reconcileOcr(): Promise<void> {
+  if (!ocrIndex) return;
+  const generation = ++ocrReconcileGeneration;
+  const [images, phrases] = await Promise.all([imageStore.list(), phraseStore.list()]);
+  if (generation !== ocrReconcileGeneration || isQuitting) return;
+  const userData = app.getPath("userData");
+  ocrIndex.reconcile([
+    ...images.map(image => ({ key: `image:${image.id}`, path: join(userData, "images", image.fileName) })),
+    ...phrases.filter(phrase => phrase.kind === "image" && /^[\w-]{1,100}$/.test(phrase.id))
+      .map(phrase => ({ key: `phrase:${phrase.id}`, path: join(userData, "phrase-images", `${phrase.id}.png`) }))
+  ]);
+}
+
+function scheduleOcrReconcile(): void {
+  void reconcileOcr().catch(() => console.warn("G-paster could not refresh the image text index."));
+}
+
+async function createImagePhrase(buffer: Buffer, width: number, height: number, category: unknown) {
+  const phrase = await phraseStore.createImage(buffer, width, height, typeof category === "string" ? category : "未分类");
+  if (phrase) scheduleOcrReconcile();
+  return phrase;
 }
 
 async function updateClipboard<T>(operation: () => Promise<T>): Promise<T> {
@@ -679,6 +716,10 @@ function registerHistoryIpc(): void {
 }
 
 function registerPhraseIpc(): void {
+  ipcMain.handle("ocr:list", (event) => {
+    assertTrustedWindow(event);
+    return ocrIndex?.snapshot() ?? {};
+  });
   ipcMain.handle("phrase:list", async (event) => {
     assertTrustedWindow(event);
     return phraseStore.list();
@@ -698,7 +739,9 @@ function registerPhraseIpc(): void {
 
   ipcMain.handle("phrase:delete", async (event, id: unknown) => {
     assertTrustedWindow(event);
-    return typeof id === "string" && id.length <= 100 ? phraseStore.delete(id) : false;
+    const deleted = typeof id === "string" && id.length <= 100 ? await phraseStore.delete(id) : false;
+    if (deleted) scheduleOcrReconcile();
+    return deleted;
   });
 
   ipcMain.handle("phrase:copy", async (event, id: unknown) => {
@@ -753,11 +796,11 @@ function registerPhraseIpc(): void {
     const stored = await imageStore.get(id);
     if (stored) {
       const bytes = await imageStore.read(id);
-      if (bytes) return phraseStore.createImage(bytes, stored.width, stored.height, typeof category === "string" ? category : "未分类");
+      if (bytes) return createImagePhrase(bytes, stored.width, stored.height, category);
     }
     const fileImage = await fileImages.read(id);
     if (!fileImage) return null;
-    return phraseStore.createImage(fileImage.buffer, fileImage.width, fileImage.height, typeof category === "string" ? category : "未分类");
+    return createImagePhrase(fileImage.buffer, fileImage.width, fileImage.height, category);
   });
 
   ipcMain.handle("phrase:import-image", async (event, category: unknown) => {
@@ -773,7 +816,7 @@ function registerPhraseIpc(): void {
       if (result.canceled || !result.filePaths[0]) return null;
       const image = await decodeImageBuffer(await readImageFile(result.filePaths[0]));
       if (!image) throw new Error("无法读取这张图片。");
-      return await phraseStore.createImage(image.buffer, image.width, image.height, typeof category === "string" ? category : "未分类");
+      return await createImagePhrase(image.buffer, image.width, image.height, category);
     } finally {
       isNativeDialogOpen = false;
     }
@@ -818,9 +861,66 @@ function updateTrayMenu(): void {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: nativeText("打开 G-paster"), click: showWindow },
     { label: nativeText("设置"), click: openSettings },
+    ...(process.platform === "darwin" ? [{ label: (currentSystemSettings?.language === "en" ? "Capture region" : "区域截图"), click: () => { void startRegionCapture(); } }] : []),
     { type: "separator" },
     { label: nativeText("退出 G-paster"), click: () => { isQuitting = true; app.quit(); } }
   ]));
+}
+
+const captureFeedback = new CaptureFeedback();
+
+async function startRegionCapture(): Promise<void> {
+  if (isRegionCaptureActive || isNativeDialogOpen || isQuitting || process.platform !== "darwin") return;
+  isRegionCaptureActive = true;
+  isNativeDialogOpen = true;
+  const language = currentSystemSettings?.language ?? "en";
+  try {
+    const feedbackVisible = captureFeedback.dismiss();
+    const mainVisible = mainWindow?.isVisible();
+    if (mainVisible) hideWindow();
+    if (mainVisible || feedbackVisible) await new Promise(resolve => setTimeout(resolve, 150));
+    const executable = app.isPackaged ? join(process.resourcesPath, "gpaster-ocr") : join(app.getAppPath(), "work", "gpaster-ocr");
+    const result = await captureRegion(executable, async (buffer, width, height) => {
+      await imageStore.record(buffer, width, height, Date.now(), "screenshot");
+      void publishHistory().catch(error => console.error("Screenshot history refresh failed:", (error as NodeJS.ErrnoException)?.code));
+    }, async text => {
+      await updateClipboard(async () => { await clipboard.writeText(text); });
+    }, language, action => { if (!isQuitting) captureFeedback.processing(action, language); });
+    if (!isQuitting && result !== "cancelled") captureFeedback.complete(result, language);
+  } catch (error) {
+    captureFeedback.dismiss();
+    if (isQuitting) return;
+    const stage = error instanceof RegionCaptureError ? error.stage : "capture";
+    console.error("Region capture failed:", stage, error instanceof Error ? (error.cause as NodeJS.ErrnoException | undefined)?.code : undefined);
+    const messages = {
+      permission: ["请在系统设置中允许 G-paster 录制屏幕，然后重试。", "Allow G-paster to record the screen in System Settings, then retry."],
+      capture: ["无法获取屏幕画面，请重试。", "Could not capture the screen. Try again."],
+      overlay: ["无法打开截图选区，请重试。", "Could not open the capture overlay. Try again."],
+      save: ["未能保存截图，请重试。", "Could not save the screenshot. Try again."],
+      text: ["未能识别或复制文字，请重试。", "Could not recognize or copy text. Try again."]
+    };
+    const zh = language === "zh";
+    const options: Electron.MessageBoxOptions = { type: "error", title: "G-paster", message: messages[stage][zh ? 0 : 1] };
+    if (stage !== "permission") {
+      await dialog.showMessageBox(options);
+      return;
+    }
+    const { response } = await dialog.showMessageBox({
+      ...options,
+      detail: zh ? "为「屏幕与系统音频录制」启用 G-paster，并按系统提示完全退出后重新打开。" :
+        "Enable G-paster under Screen & System Audio Recording, then quit and reopen it when prompted.",
+      buttons: zh ? ["打开系统设置", "取消"] : ["Open System Settings", "Cancel"],
+      defaultId: 0,
+      cancelId: 1
+    });
+    if (response === 0 && !isQuitting) {
+      await shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+        .catch(() => console.warn("G-paster could not open screen recording settings."));
+    }
+  } finally {
+    isNativeDialogOpen = false;
+    isRegionCaptureActive = false;
+  }
 }
 
 function createTray(): void {
@@ -1118,6 +1218,10 @@ function registerGlobalShortcut(): void {
   const registered = preferences.register();
   console.info("G-paster global shortcut registered:", registered, preferences.shortcut);
   if (!registered) console.warn("G-paster could not register its global shortcut:", preferences.shortcut);
+  if (process.platform === "darwin") {
+    const captureRegistered = preferences.registerCapture();
+    if (!captureRegistered) console.warn("G-paster could not register region capture shortcut", preferences.captureShortcut);
+  }
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -1126,11 +1230,13 @@ if (!app.requestSingleInstanceLock()) {
   app.on("second-instance", showWindow);
   app.on("before-quit", () => {
     isQuitting = true;
+    captureFeedback.dismiss();
     clipboardPollingTimer.dispose();
     // Invalidate work already admitted before timer disposal.
     imageCaptureGeneration++;
     clipboardWriteGeneration++;
     screenshotMonitor?.stop();
+    ocrIndex?.close();
     fileStore?.stop();
     if (app.isReady()) {
       setShortcutRecording(false);
@@ -1141,7 +1247,7 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     refreshSystemSettings();
     const userData = app.getPath("userData");
-    preferences = new Preferences(join(userData, "preferences.json"), GLOBAL_SHORTCUT, process.platform, globalShortcut, toggleWindow);
+    preferences = new Preferences(join(userData, "preferences.json"), GLOBAL_SHORTCUT, process.platform, globalShortcut, toggleWindow, () => { void startRegionCapture(); });
     await preferences.load();
     if (isQuitting) return;
     nativeTheme.themeSource = preferences.options.appearance;
@@ -1152,6 +1258,16 @@ if (!app.requestSingleInstanceLock()) {
     fileStore = new FileStore(join(userData, "file-history.json"));
     fileImages = new FileImages(fileStore);
     await Promise.all([historyStore.list(), imageStore.list(), phraseStore.list(), fileStore.list()]);
+    if (process.platform === "darwin") {
+      const executable = app.isPackaged ? join(process.resourcesPath, "gpaster-ocr") : join(app.getAppPath(), "work", "gpaster-ocr");
+      if (existsSync(executable)) {
+        ocrIndex = new OcrIndex(join(userData, "image-text-index.json"), executable, () => {
+          if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("ocr:changed");
+        });
+        await ocrIndex.load();
+        await reconcileOcr().catch(() => console.warn("G-paster could not load the image text index."));
+      }
+    }
     if (isQuitting) return;
     if (consumeCorruptionEvents().length) {
       reportCaptureIssue("storage", "部分本地数据文件损坏，已保留原文件并以空记录启动。请检查数据目录或备份文件。");

@@ -8,6 +8,8 @@
 	<array><string>en</string><string>zh-Hans</string><string>zh-Hant</string></array>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>G-paster 需要捕获屏幕以便选择截图区域并识别文字。</string>
 	<key>NSDesktopFolderUsageDescription</key>
 	<string>G-paster 需要读取桌面中新生成的截图，保存独立副本到本地截图中转站，原文件保持不变。</string>
 	<key>NSDocumentsFolderUsageDescription</key>

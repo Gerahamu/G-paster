@@ -72,6 +72,7 @@ async function main() {
   const identityArgs = noDeveloperId ? [] : await signingOptions();
   const identity = noDeveloperId ? null : process.env.GPASTER_MAC_IDENTITY.trim();
 
+  run("swiftc", ["-O", "native/ocr.swift", "-o", "work/gpaster-ocr"], "Compile macOS text recognition");
   run("npm", ["run", "build"], "Production build");
   const args = [
     ".", "G-paster",
@@ -81,6 +82,7 @@ async function main() {
     "--extra-resource=assets/localizations/en.lproj",
     "--extra-resource=assets/localizations/zh-Hans.lproj",
     "--extra-resource=assets/localizations/zh-Hant.lproj",
+    "--extra-resource=work/gpaster-ocr",
     "--ignore=^/(work|outputs|src|electron|scripts|docs)(/|$)|^/node_modules/(\\.vite|\\.package-lock\\.json)(/|$)|^/(README\\.md|CHANGELOG\\.md|index\\.html|vite\\.config\\.mts|tsconfig\\.[^/]+\\.json|\\.gitignore)$|^/assets/(G-paster\\.icns|G-paster-brand\\.png|tray-icon\\.svg|GpasterTemplate(@2x)?\\.png|localizations)(/|$)"
   ];
 

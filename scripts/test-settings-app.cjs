@@ -72,7 +72,7 @@ app.whenReady().then(async () => {
     console.log(`PASS fresh process restores actual UI-saved language, appearance, initial preload snapshot and retention policy (isPackaged=${app.isPackaged})`);
     return;
   }
-  const toggle = () => { assert.equal(suspended, false); const prefs = [...bindings.keys()][0]; bindings.get(prefs)(); };
+  const toggle = () => { assert.equal(suspended, false); const prefs = [...bindings.keys()].find(key => key !== 'Control+V'); assert.ok(prefs); bindings.get(prefs)(); };
   if (app.isPackaged && process.env.GPASTER_TEST_LOGIN_LAUNCH === '1') {
     assert.equal(window.isVisible(), false);
     console.log('PASS packaged login launch keeps the panel hidden until requested');
@@ -104,7 +104,7 @@ app.whenReady().then(async () => {
   await record('G', ['control', 'shift']);
   await waitFor(async () => (await evaluate('window.gpaster.getPreferences()')).shortcut === 'Control+Shift+G', 'new shortcut');
   assert.equal(bindings.has('Control+C'), false); assert.equal(bindings.has('Control+Shift+G'), true);
-  assert.deepEqual(JSON.parse(await readFile(join(data, 'preferences.json'), 'utf8')), [{ shortcut: 'Control+Shift+G', language: 'system', appearance: 'system', textLimit: 300, imageLimit: 10, saveFileCopies: false, rememberPage: true }]);
+  assert.deepEqual(JSON.parse(await readFile(join(data, 'preferences.json'), 'utf8')), [{ shortcut: 'Control+Shift+G', captureShortcut: 'Control+V', language: 'system', appearance: 'system', textLimit: 300, imageLimit: 10, saveFileCopies: false, rememberPage: true }]);
   toggle(); toggle();
   await waitFor(() => evaluate('Boolean(document.querySelector(".module-tabs"))'), 'reopening settings returns to content');
   assert.equal(await evaluate('document.querySelectorAll(".module-tab")[0].classList.contains("active")'), true);

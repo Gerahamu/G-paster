@@ -46,7 +46,45 @@ test("preferences preserve old shortcut on conflict, serialize updates, persist 
     const reloaded = new Preferences(path, "Control+C", "darwin", registry(), () => {});
     await reloaded.load(); assert.equal(reloaded.shortcut, "Alt+G");
     await preferences.setShortcut("Control+C");
-    assert.deepEqual(JSON.parse(await readFile(path, "utf8")), [{ shortcut: "Control+C", ...DEFAULT_PREFERENCES }]);
+    assert.deepEqual(JSON.parse(await readFile(path, "utf8")), [{ shortcut: "Control+C", captureShortcut: "Control+V", ...DEFAULT_PREFERENCES }]);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("capture shortcut persists and keeps the previous shortcut on conflict", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "gpaster-capture-shortcut-"));
+  try {
+    const path = join(directory, "preferences.json"), native = registry();
+    let captures = 0;
+    const preferences = new Preferences(path, "Control+C", "darwin", native, () => {}, () => captures++);
+    preferences.register();
+    assert.equal(preferences.registerCapture(), true);
+    native.bindings.get("Control+V")!();
+    assert.equal(captures, 1);
+    assert.equal(await preferences.setCaptureShortcut("Control+C"), "shortcut-conflict");
+    assert.equal(preferences.captureShortcut, "Control+V");
+    assert.equal(await preferences.setCaptureShortcut("Alt+V"), null);
+    assert.equal(native.isRegistered("Control+V"), false);
+    const restored = new Preferences(path, "Control+C", "darwin", registry(), () => {});
+    await restored.load();
+    assert.equal(restored.captureShortcut, "Alt+V");
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("moving a legacy panel shortcut off Control+V makes the default capture shortcut available", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "gpaster-shortcut-migration-"));
+  try {
+    const path = join(directory, "preferences.json");
+    await writeFile(path, JSON.stringify([{ shortcut: "Control+V" }]));
+    const native = registry();
+    let captures = 0;
+    const preferences = new Preferences(path, "Control+C", "darwin", native, () => {}, () => captures++);
+    await preferences.load();
+    assert.equal(preferences.register(), true);
+    assert.equal(preferences.registerCapture(), false);
+    assert.equal(await preferences.setShortcut("Control+C"), null);
+    assert.equal(preferences.captureRegistered, true);
+    native.bindings.get("Control+V")!();
+    assert.equal(captures, 1);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 

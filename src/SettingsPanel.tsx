@@ -20,6 +20,7 @@ export default function SettingsPanel({ system, onBack }: { system: SystemSettin
   const [notice, setNotice] = useState<TranslationKey | "">("");
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
+  const recordingTarget = useRef<"panel" | "capture">("panel");
   const [textLimit, setTextLimit] = useState("");
   const [imageLimit, setImageLimit] = useState("");
   const dirtyLimits = useRef(false);
@@ -118,8 +119,9 @@ export default function SettingsPanel({ system, onBack }: { system: SystemSettin
     } catch { if (alive.current && revision === limitRevision.current) setError("设置保存失败，请重试。"); }
   }
 
-  async function startRecording() {
+  async function startRecording(target: "panel" | "capture" = "panel") {
     setBusy(true); setError(""); setNotice("");
+    recordingTarget.current = target;
     try {
       await window.gpaster.setShortcutRecording(true);
       if (!alive.current) { await window.gpaster.setShortcutRecording(false); return; }
@@ -140,7 +142,7 @@ export default function SettingsPanel({ system, onBack }: { system: SystemSettin
     const candidate = shortcutFromKey(event, window.gpaster.platform);
     if (!candidate) { setError(failureKeys["shortcut-invalid"]); return; }
     setRecording(false);
-    void apply(() => window.gpaster.setShortcut(candidate), true);
+    void apply(() => recordingTarget.current === "capture" ? window.gpaster.setCaptureShortcut(candidate) : window.gpaster.setShortcut(candidate), true);
   }
 
   return <section className="settings-panel" aria-label={t("设置")}>
@@ -151,8 +153,9 @@ export default function SettingsPanel({ system, onBack }: { system: SystemSettin
       {!preferences ? !error && <div className="empty-state"><span className="loading-dot" /></div> : <>
         <section className="settings-section" aria-labelledby="general-heading"><h2 id="general-heading">{t("使用习惯")}</h2>
           <div className="settings-group">
-            <div className="settings-row shortcut-row"><div className="settings-copy"><strong>{t("打开 / 收起面板")}</strong><span>{t("再按一次快捷键即可收起。")}</span></div><div className="shortcut-control"><kbd>{displayShortcut(preferences.shortcut, window.gpaster.platform)}</kbd><button ref={recordButton} className={"settings-action" + (recording ? " recording" : "")} type="button" disabled={busy} onClick={() => recording ? cancelRecording() : void startRecording()} onKeyDown={recordKey} onBlur={() => { if (recording) cancelRecording(); }} aria-label={t("更改快捷键")}>{t(recording ? "按下新组合键" : "更改")}</button></div></div>
+            <div className="settings-row shortcut-row"><div className="settings-copy"><strong>{t("打开 / 收起面板")}</strong><span>{t("再按一次快捷键即可收起。")}</span></div><div className="shortcut-control"><kbd>{displayShortcut(preferences.shortcut, window.gpaster.platform)}</kbd><button ref={recordingTarget.current === "panel" ? recordButton : undefined} className={"settings-action" + (recording && recordingTarget.current === "panel" ? " recording" : "")} type="button" disabled={busy || (recording && recordingTarget.current !== "panel")} onClick={() => recording ? cancelRecording() : void startRecording("panel")} onKeyDown={recordKey} onBlur={() => { if (recording) cancelRecording(); }} aria-label={t("更改快捷键")}>{t(recording && recordingTarget.current === "panel" ? "按下新组合键" : "更改")}</button></div></div>
             <div className="settings-shortcut-footer"><span>{recording ? t("按 Esc 取消") : !preferences.shortcutRegistered ? t("快捷键未生效，可更换组合或使用菜单栏打开。") : ""}</span><button className="settings-link" disabled={busy || recording || preferences.shortcut === preferences.defaultShortcut} type="button" onClick={() => void apply(() => window.gpaster.setShortcut(preferences.defaultShortcut), true)}>{t("恢复默认")}</button></div>
+            {window.gpaster.platform === "darwin" && <><div className="settings-row shortcut-row"><div className="settings-copy"><strong>{t("区域截图")}</strong><span>{t("框选屏幕并保存或识别文字。")}</span></div><div className="shortcut-control"><kbd>{displayShortcut(preferences.captureShortcut, window.gpaster.platform)}</kbd><button ref={recordingTarget.current === "capture" ? recordButton : undefined} className={"settings-action" + (recording && recordingTarget.current === "capture" ? " recording" : "")} type="button" disabled={busy || (recording && recordingTarget.current !== "capture")} onClick={() => recording ? cancelRecording() : void startRecording("capture")} onKeyDown={recordKey} onBlur={() => { if (recording) cancelRecording(); }} aria-label={t("更改截图快捷键")}>{t(recording && recordingTarget.current === "capture" ? "按下新组合键" : "更改")}</button></div></div><div className="settings-shortcut-footer"><span>{!preferences.captureShortcutRegistered ? t("截图快捷键未生效，请更换组合。") : ""}</span><button className="settings-link" disabled={busy || recording || preferences.captureShortcut === "Control+V"} type="button" onClick={() => void apply(() => window.gpaster.setCaptureShortcut("Control+V"), true)}>{t("恢复默认")}</button></div></>}
             <div className="settings-row"><div className="settings-copy"><strong>{t("开机启动")}</strong><span>{t(!preferences.loginSupported ? "安装版可设置开机启动。" : preferences.loginStatus === "unavailable" ? "无法读取开机启动状态，请检查系统登录项。" : preferences.loginStatus === "requires-approval" ? "需在系统登录项中允许启动。" : "登录后在后台运行。")}</span></div><button className="settings-switch" type="button" role="switch" aria-checked={preferences.openAtLogin || preferences.loginStatus === "requires-approval"} aria-label={t("开机启动")} disabled={busy || recording || !preferences.loginSupported || preferences.loginStatus === "unavailable"} onClick={() => void apply(() => window.gpaster.setOpenAtLogin(!(preferences.openAtLogin || preferences.loginStatus === "requires-approval")))}><span /></button></div>
           </div>
         </section>
